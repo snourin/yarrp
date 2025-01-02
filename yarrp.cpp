@@ -12,8 +12,61 @@
  ***************************************************************************/
 #include "yarrp.h"
 
+static const int MAXCLIENTS = 64; //maximum clients allowed in listening queue for control socket
+std::mutex iplist_mutex;
 
 template < class TYPE >
+
+void
+control_socket_listener(int port) {
+    int socket_fd;
+
+    // Create a control socket yarrp can listen on to receive new 
+    // addresses/prefixes to scan
+    socket_fd = socket(AF_INET6, SOCK_STREAM, 0);
+    if (socket_fd < 0) {
+        perror("Failed to create socket");
+        return -1;
+    }
+
+    // Set the socket options so that the socket accepts both IPv4 and IPv6
+    // connections (is dual stacked)
+    int opt = 0;
+    int setsocketopt_result = setsocketopt(socket_fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))
+    if (setsocketopt_result < 0) {
+        perror("Failed to set IPV6_V6ONLY");
+        close(socket_fd);
+        return -1;
+    }
+
+    // Initialize socket address struct
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+    addr.sin6_port = htons(port);
+    addr.sin6_addr = in6addr_any;
+
+    // Bind to the socket
+    if (bind(socket_fd) (struct sockaddr_in6 *) &addr, sizeof(addr) < 0) {
+        perror("Failed to bind to the socket");
+        return -1;
+    }
+
+    // Start listening to the port
+    if (listen(socket_fd, MAXCLIENTS) < 0) {
+        perror("Failed to start listening to the socket");
+        return -1;
+    }
+
+    return socket_fd;
+
+}
+
+void
+control_socket_handler() {
+    
+}
+
 void
 loop(YarrpConfig * config, TYPE * iplist, Traceroute * trace,
      Patricia * tree, Stats * stats) {
