@@ -12,6 +12,7 @@ static struct option long_options[] = {
     {"blocklist", required_argument, NULL, 'B'},
     {"coarse", required_argument, NULL, 'C'},
     {"count", required_argument, NULL, 'c'},
+    {"dynamicaddressesport", required_argument, NULL, 'D'},
     {"fillmode", required_argument, NULL, 'F'},
     {"poisson", required_argument, NULL, 'Z'},
     {"srcmac", required_argument, NULL, 'M'},
@@ -64,7 +65,7 @@ YarrpConfig::parse_opts(int argc, char **argv) {
 #endif
     params["RTT_Granularity"] = val_t("us", true);
     params["Targets"] = val_t("entire", true);
-    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CE:F:G:g:hi:I:l:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
+    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CD:E:F:G:g:hi:I:l:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
         switch (c) {
         case 'b':
             bgpfile = optarg;
@@ -85,6 +86,9 @@ YarrpConfig::parse_opts(int argc, char **argv) {
         case 'c':
             count = strtol(optarg, &endptr, 10);
             params["Count"] = val_t(to_string(count), true);
+            break;
+        case 'D':
+            dynamicaddressesport = strtol(optarg, &endptr, 10);
             break;
         case 'F':
             fillmode = strtol(optarg, &endptr, 10);
@@ -276,6 +280,7 @@ YarrpConfig::usage(char *prog) {
     << "  -b, --bgp               BGP table (default: none)" << endl
     << "  -B, --blocklist         Prefix blocklist (default: none)" << endl
     << "  -Q, --entire            Entire IPv4/IPv6 Internet (default: off)" << endl
+    << "  -D, --dynamicaddressesport  Dynamically add target addresses via port" << endl
 
     << "TTL options:" << endl
     << "  -l, --minttl            Minimum TTL (default: 1)" << endl

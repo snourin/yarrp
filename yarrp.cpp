@@ -13,12 +13,9 @@
 #include "yarrp.h"
 
 static const int MAXCLIENTS = 64; //maximum clients allowed in listening queue for control socket
-std::mutex iplist_mutex;
 
-template < class TYPE >
-
-void
-control_socket_listener(int port) {
+int
+control_socket_listener(uint16_t port) {
     int socket_fd;
 
     // Create a control socket yarrp can listen on to receive new 
@@ -32,7 +29,7 @@ control_socket_listener(int port) {
     // Set the socket options so that the socket accepts both IPv4 and IPv6
     // connections (is dual stacked)
     int opt = 0;
-    int setsocketopt_result = setsocketopt(socket_fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))
+    int setsocketopt_result = setsockopt(socket_fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
     if (setsocketopt_result < 0) {
         perror("Failed to set IPV6_V6ONLY");
         close(socket_fd);
@@ -47,7 +44,7 @@ control_socket_listener(int port) {
     addr.sin6_addr = in6addr_any;
 
     // Bind to the socket
-    if (bind(socket_fd) (struct sockaddr_in6 *) &addr, sizeof(addr) < 0) {
+    if (bind(socket_fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
         perror("Failed to bind to the socket");
         return -1;
     }
@@ -63,10 +60,76 @@ control_socket_listener(int port) {
 }
 
 void
-control_socket_handler() {
-    
+control_socket_handler(int client_socket_fd,  IPList * iplist) {
+
+    std::cout << "Handling incoming connection" << std::endl;
+
+    size_t buffer_size = 1023;
+    std::vector<char> buffer(buffer_size + 1);
+
+    size_t total_bytes_read = 0;
+    int curr_bytes_read = 0;
+
+    while (true) {
+        // std::cout <<  curr_bytes_read << std::endl;
+        curr_bytes_read = read(client_socket_fd, buffer.data() + total_bytes_read, buffer_size - total_bytes_read);
+        
+        if (curr_bytes_read < 0){
+            std::cerr << "Error reading from socket" << std::endl;
+            break;
+        } else if (curr_bytes_read == 0) {
+            break; // No more data to be read
+        } 
+
+        total_bytes_read += curr_bytes_read;
+
+        // If buffer is full, double the buffer size
+        if (total_bytes_read == buffer_size) {
+            buffer_size *= 2;
+            buffer.resize(buffer_size);
+        }
+    }
+
+    buffer[total_bytes_read] = '\0';
+
+    std::cout << "Data Read: " << buffer.data() << std::endl;
+
+    std::istringstream ip_stream(std::string(buffer.data(), total_bytes_read));
+
+    iplist->read(ip_stream);
+
+    close(client_socket_fd);
 }
 
+void
+control_socket_listener_thread(uint16_t port,  IPList * iplist){
+    int socket_fd = control_socket_listener(port);
+
+    std::cout << "yarrp is listening on port " << port << std::endl;
+
+    while (true) {
+        struct sockaddr_in6 client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+        int client_socket_fd = accept(socket_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+
+        if (client_socket_fd < 0) {
+            perror("Failed to accept incoming client connection");
+            continue; // Continue accepting other client connections
+        }
+
+        char ip_address[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &client_addr.sin6_addr, ip_address, sizeof(ip_address));
+        std::cout << "Accepted connection from " << ip_address << std::endl;
+
+        // Spawn a new thread to handle the request from the client
+        std::thread control_handler_thread(control_socket_handler, client_socket_fd, iplist);
+        control_handler_thread.join();
+    }
+
+    close(socket_fd);
+}
+
+template < class TYPE >
 void
 loop(YarrpConfig * config, TYPE * iplist, Traceroute * trace,
      Patricia * tree, Stats * stats) {
@@ -350,6 +413,13 @@ main(int argc, char **argv) {
         /* unlock so listener thread starts */
         trace->unlock();
     }
+
+    /* Start control socket if dynamic addresses mode is enabled*/
+    std::thread control_socket_thread;
+    if (config.dynamicaddressesport) {
+        control_socket_thread = std::thread(control_socket_listener_thread, static_cast<uint16_t>(config.dynamicaddressesport), iplist);
+    }
+
     /* Start listener if we're only in receive mode */
     if ((not config.probe) and config.receive) {
         if (config.ipv6)
@@ -371,6 +441,12 @@ main(int argc, char **argv) {
         debug(LOW, ">> Waiting " << SHUTDOWN_WAIT << "s for outstanding replies...");
         sleep(SHUTDOWN_WAIT);
     }
+
+    // /* Join control socket thread */
+    // if (control_socket_thread.joinable()) {
+    //     control_socket_thread.join();
+    // }
+
     /* Finished, cleanup */
     if (config.receive) {
         if (config.output and not config.testing)

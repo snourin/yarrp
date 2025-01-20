@@ -10,7 +10,7 @@ class YarrpConfig {
     dstport(80),
     ipv6(false), int_name(NULL), dstmac(NULL), srcmac(NULL), 
     coarse(false), fillmode(32), poisson(0),
-    probesrc(NULL), probe(true), receive(true), instance(0), v6_eh(255), out(NULL) {};
+    probesrc(NULL), probe(true), receive(true), instance(0), v6_eh(255), out(NULL), dynamicaddressesport(0) {};
 
   void parse_opts(int argc, char **argv); 
   void usage(char *prog);
@@ -27,6 +27,7 @@ class YarrpConfig {
   char *blocklist;
   uint32_t count;
   uint8_t minttl;
+  uint16_t dynamicaddressesport; /* listen on socket for new targets*/
   uint8_t maxttl;
   uint32_t seed;
   uint16_t dstport;
