@@ -64,7 +64,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
-#include <thread>
 
 #ifdef HAVE_PTHREAD
  #include <pthread.h>

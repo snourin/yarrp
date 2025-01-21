@@ -12,7 +12,6 @@ static struct option long_options[] = {
     {"blocklist", required_argument, NULL, 'B'},
     {"coarse", required_argument, NULL, 'C'},
     {"count", required_argument, NULL, 'c'},
-    {"dynamicaddressesport", required_argument, NULL, 'D'},
     {"fillmode", required_argument, NULL, 'F'},
     {"poisson", required_argument, NULL, 'Z'},
     {"srcmac", required_argument, NULL, 'M'},
@@ -65,7 +64,7 @@ YarrpConfig::parse_opts(int argc, char **argv) {
 #endif
     params["RTT_Granularity"] = val_t("us", true);
     params["Targets"] = val_t("entire", true);
-    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CD:E:F:G:g:hi:I:l:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
+    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CE:F:G:g:hi:I:l:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
         switch (c) {
         case 'b':
             bgpfile = optarg;
@@ -86,9 +85,6 @@ YarrpConfig::parse_opts(int argc, char **argv) {
         case 'c':
             count = strtol(optarg, &endptr, 10);
             params["Count"] = val_t(to_string(count), true);
-            break;
-        case 'D':
-            dynamicaddressesport = strtol(optarg, &endptr, 10);
             break;
         case 'F':
             fillmode = strtol(optarg, &endptr, 10);
@@ -256,6 +252,51 @@ YarrpConfig::dump(FILE *fd) {
     fflush(fd);
 }
 
+void
+YarrpConfig::switch_target(string new_target){
+    params["Targets"] = val_t(new_target, true);
+}
+
+void
+YarrpConfig::switch_probe(const char * new_probe){
+    if (strcmp(new_probe, "ICMP6") == 0) {
+        ipv6 = true;
+        type = TR_ICMP6;
+    } else if(strcmp(new_probe, "UDP6") == 0) {
+        ipv6 = true;
+        type = TR_UDP6;
+    } else if(strcmp(new_probe, "TCP6_SYN") == 0) {
+        ipv6 = true;
+        type = TR_TCP6_SYN;
+    } else if(strcmp(new_probe, "TCP6_ACK") == 0) {
+        ipv6 = true;
+        type = TR_TCP6_ACK;
+    } else if(strcmp(new_probe, "ICMP") == 0) {
+        type = TR_ICMP;
+    } else if(strcmp(new_probe, "ICMP_REPLY") == 0) {
+        type = TR_ICMP_REPLY;
+    } else if(strcmp(new_probe, "UDP") == 0) {
+        type = TR_UDP;
+    } else if(strcmp(new_probe, "TCP_SYN") == 0) {
+        type = TR_TCP_SYN;
+    } else if(strcmp(new_probe, "TCP_ACK") == 0) {
+        type = TR_TCP_ACK;
+    }
+
+    params["Trace_Type"] = val_t(Tr_Type_String[type], true);
+}
+
+void
+YarrpConfig::switch_output(string new_output){
+    if (out) {
+        fclose(out);
+        out = nullptr;
+    }
+
+    snprintf(output, UINT8_MAX, "%s", new_output.c_str());
+    out = fopen(output, "a");
+}
+
 
 void
 YarrpConfig::usage(char *prog) {
@@ -280,7 +321,6 @@ YarrpConfig::usage(char *prog) {
     << "  -b, --bgp               BGP table (default: none)" << endl
     << "  -B, --blocklist         Prefix blocklist (default: none)" << endl
     << "  -Q, --entire            Entire IPv4/IPv6 Internet (default: off)" << endl
-    << "  -D, --dynamicaddressesport  Dynamically add target addresses via port" << endl
 
     << "TTL options:" << endl
     << "  -l, --minttl            Minimum TTL (default: 1)" << endl

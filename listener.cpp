@@ -7,6 +7,7 @@
 #include <signal.h>
 
 static volatile bool run = true;
+extern volatile bool startTimeout;
 
 void intHandler(int dummy) {
     run = false;
@@ -43,7 +44,7 @@ listener(void *args) {
         FD_SET(rcvsock, &rfds);
         n = select(rcvsock + 1, &rfds, NULL, NULL, &timeout);
         /* only timeout if we're also probing (not listen-only mode) */
-        if ((n == 0) and (trace->config->probe)) {
+        if (startTimeout &&  (n == 0) and (trace->config->probe)) {
             nullreads++;
             cerr << ">> Listener: timeout " << nullreads;
             cerr << "/" << MAXNULLREADS << endl;
