@@ -5,6 +5,13 @@
 ****************************************************************************/
 #include "yarrp.h"
 
+#ifndef HOST
+#define HOST "youporn.com"
+#endif
+
+#define PAYLOAD "GET / HTTP/1.1\r\nHost: " HOST "\r\n\r\n"
+#define PAYLOAD_LEN strlen(PAYLOAD) 
+
 Traceroute4::Traceroute4(YarrpConfig *_config, Stats *_stats) : Traceroute(_config, _stats)
 {
     if (config->testing) return;
@@ -85,6 +92,8 @@ Traceroute4::probe(struct sockaddr_in *target, int ttl) {
         probeICMP(target, ttl);
     } else if ( (TR_TCP_SYN == config->type) || (TR_TCP_ACK == config->type) ) {
         probeTCP(target, ttl);
+    } else if (TR_TCP_SYN_PSHACK == config->type) {
+        probeTCPSYNPSHACK(target, ttl);
     } else {
         cerr << "** bad trace type:" << config->type << endl;
         assert(false);
@@ -181,6 +190,107 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
         tcp->th_flags |= TH_ACK;
         tcp->th_ack = htonl(target->sin_addr.s_addr);
     }
+    /*
+     * explicitly computing cksum probably not required on most machines
+     * these days as offloaded by OS or NIC.  but we'll be safe.
+     */
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+    /*
+     * bsd rawsock requires host ordered len and offset; rewrite here as
+     * chksum must be over htons() versions
+     */
+    u_short len = sizeof(struct tcphdr) + payloadlen;
+    tcp->th_sum = p_cksum(outip, (u_short *) tcp, len);
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << diff << endl;
+    }
+}
+
+void
+Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
+    // SYN
+    unsigned char *ptr_syn = (unsigned char *)outip;
+    struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl << 2));
+
+    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payloadlen;
+    outip->ip_p = IPPROTO_TCP;
+#if defined(_BSD) && !defined(_NEW_FBSD)
+    outip->ip_len = packlen;
+    outip->ip_off = 0; //IP_DF;
+#else
+    outip->ip_len = htons(packlen);
+#endif
+    /* encode destination IPv4 address as cksum(ipdst) */
+    uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+    tcp_syn->th_sport = htons(dport);
+    tcp_syn->th_dport = htons(dstport);
+    /* encode send time into seq no as elapsed milliseconds */
+    uint32_t diff = elapsed();
+    if (verbosity > HIGH) {
+        cout << ">> TCP probe: ";
+        probePrint(&target->sin_addr, ttl);
+    }
+    tcp_syn->th_seq = htonl(diff);
+    tcp_syn->th_off = 5;
+    tcp_syn->th_win = htons(0xFFFE);
+    tcp_syn->th_sum = 0;
+
+    tcp_syn->th_flags = TH_SYN;
+
+    /*
+     * explicitly computing cksum probably not required on most machines
+     * these days as offloaded by OS or NIC.  but we'll be safe.
+     */
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+    /*
+     * bsd rawsock requires host ordered len and offset; rewrite here as
+     * chksum must be over htons() versions
+     */
+    u_short len_syn = sizeof(struct tcphdr) + payloadlen;
+    tcp_syn->th_sum = p_cksum(outip, (u_short *) tcp_syn, len_syn);
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << diff << endl;
+    }
+
+    // PSH+ACK
+    unsigned char *ptr = (unsigned char *)outip;
+    struct tcphdr *tcp = (struct tcphdr *)(ptr + (outip->ip_hl << 2));
+    unsigned char *payload = (unsigned char *)tcp + (tcp->th_off << 2);
+
+    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + PAYLOAD_LEN;
+    outip->ip_p = IPPROTO_TCP;
+#if defined(_BSD) && !defined(_NEW_FBSD)
+    outip->ip_len = packlen;
+    outip->ip_off = 0; //IP_DF;
+#else
+    outip->ip_len = htons(packlen);
+#endif
+    /* Set HTTP GET request as TCP payload */
+    memcpy(payload, PAYLOAD, PAYLOAD_LEN);
+
+    /* encode destination IPv4 address as cksum(ipdst) */
+    //uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+    tcp->th_sport = htons(dport);
+    tcp->th_dport = htons(dstport);
+    /* encode send time into seq no as elapsed milliseconds */
+    // uint32_t diff = elapsed();
+    // if (verbosity > HIGH) {
+    //     cout << ">> TCP probe: ";
+    //     probePrint(&target->sin_addr, ttl);
+    // }
+    tcp->th_seq = htonl(diff + 1);
+    tcp->th_off = 5;
+    tcp->th_win = htons(0xFFFE);
+    tcp->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp);
+
+    /* Set TCP flag to be PSH+ACK */
+    tcp->th_flags = TH_PUSH | TH_ACK;
+    tcp->th_ack = htonl(target->sin_addr.s_addr);
+
     /*
      * explicitly computing cksum probably not required on most machines
      * these days as offloaded by OS or NIC.  but we'll be safe.

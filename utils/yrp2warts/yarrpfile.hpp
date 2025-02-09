@@ -27,12 +27,12 @@ using namespace std;
 using namespace ip;
 
 // from scamper/trace/scamper_trace.h
-typedef enum {ICMP6 = 0x04, ICMP = 0x04, UDP6 = 0x05, UDP = 0x05, TCP6_SYN = 0x03, TCP_SYN = 0x03, TCP6_ACK = 0x06, TCP_ACK = 0x06} traceroute_t;
+typedef enum {ICMP6 = 0x04, ICMP = 0x04, UDP6 = 0x05, UDP = 0x05, TCP6_SYN = 0x03, TCP_SYN = 0x03, TCP6_ACK = 0x06, TCP_ACK = 0x06, TCP6_SYN_PSHACK = 0x07, TCP_SYN_PSHACK = 0x07} traceroute_t;
 
 // from yarrp/src/trace.h
-static vector<traceroute_t> traceroute_type = {ICMP6, ICMP, UDP6, UDP, TCP6_SYN, TCP_SYN, TCP6_ACK, TCP_ACK};
+static vector<traceroute_t> traceroute_type = {ICMP6, ICMP, UDP6, UDP, TCP6_SYN, TCP_SYN, TCP6_ACK, TCP_ACK, TCP_SYN_PSHACK, TCP6_SYN_PSHACK};
 
-static unordered_map<string,traceroute_t> tracetype_names = { {"ICMP", ICMP}, {"ICMP6", ICMP6}, {"UDP", UDP}, {"UDP6", UDP6}, {"TCP_SYN", TCP_SYN}, {"TCP6_SYN", TCP6_SYN}, {"TCP_ACK", TCP_ACK}, {"TCP6_ACK", TCP6_ACK} };
+static unordered_map<string,traceroute_t> tracetype_names = { {"ICMP", ICMP}, {"ICMP6", ICMP6}, {"UDP", UDP}, {"UDP6", UDP6}, {"TCP_SYN", TCP_SYN}, {"TCP6_SYN", TCP6_SYN}, {"TCP_ACK", TCP_ACK}, {"TCP6_ACK", TCP6_ACK}, {"TCP_SYN_PSHACK", TCP_SYN_PSHACK}, {"TCP6_SYN_PSHACK", TCP6_SYN_PSHACK}};
 
 
 struct yarrpRecord

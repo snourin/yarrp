@@ -177,6 +177,11 @@ YarrpConfig::parse_opts(int argc, char **argv) {
                 type = TR_TCP_SYN;
             } else if(strcmp(optarg, "TCP_ACK") == 0) {
                 type = TR_TCP_ACK;
+            } else if(strcmp(optarg, "TCP_SYN_PSHACK") == 0) {
+                type = TR_TCP_SYN_PSHACK;
+            } else if(strcmp(optarg, "TCP6_SYN_PSHACK") == 0) {
+                ipv6 = true;
+                type = TR_TCP6_SYN_PSHACK;
             } else {
                 usage(argv[0]);
             }
@@ -260,7 +265,8 @@ YarrpConfig::usage(char *prog) {
     << "General options:" << endl
     << "  -o, --output            Output file (default: output.yrp)" << endl
     << "  -t, --type              Probe type: ICMP, ICMP_REPLY, TCP_SYN, TCP_ACK, UDP," << endl
-    << "                                      ICMP6, UDP6, TCP6_SYN, TCP6_ACK" << endl 
+    << "                                      ICMP6, UDP6, TCP6_SYN, TCP6_ACK, TCP_SYN_PSHACK," << endl
+    << "                                      TCP6_SYN_PSHACK" << endl 
     << "                                      (default: TCP_ACK)" << endl
     << "  -r, --rate              Scan rate in pps (default: 10)" << endl
     << "  -c, --count             Probes to issue (default: unlimited)" << endl

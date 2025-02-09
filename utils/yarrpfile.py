@@ -33,13 +33,14 @@ import bz2
 import gzip
 
 # from yarrp/src/trace.h
-traceroute_type = ["ICMP6", "ICMP", "UDP6", "UDP", "TCP6_SYN", "TCP_SYN", "TCP6_ACK", "TCP_ACK"]
+traceroute_type = ["ICMP6", "ICMP", "UDP6", "UDP", "TCP6_SYN", "TCP_SYN", "TCP6_ACK", "TCP_ACK", "TCP6_SYN_PSHACK", "TCP_SYN_PSHACK"]
 
 # from scamper/trace/scamper_trace.h
 tracetypemap = {'ICMP' : 0x04, 'ICMP6' : 0x04, 
                 'UDP'  : 0x05, 'UDP6'  : 0x05,
                 'TCP_SYN' : 0x03, 'TCP6_SYN' : 0x03,
-                'TCP_ACK' : 0x06, 'TCP6_ACK' : 0x06 }
+                'TCP_ACK' : 0x06, 'TCP6_ACK' : 0x06,
+                'TCP_SYN_PSHACK' : 0x07, 'TCP6_SYN_PSHACK' : 0x07}
 
 class Yarrp:
   def __init__(self, yarrpfile, verbose=False):
