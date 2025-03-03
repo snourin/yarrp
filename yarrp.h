@@ -79,11 +79,13 @@
 enum debugLevel {OFF, LOW, HIGH, DEBUG, DEVELOP};
 typedef enum {TR_ICMP6, TR_ICMP, TR_UDP6, TR_UDP,
               TR_TCP6_SYN, TR_TCP_SYN, TR_TCP6_ACK,
-              TR_TCP_ACK, TR_ICMP_REPLY} traceroute_type;
+              TR_TCP_ACK, TR_ICMP_REPLY, TR_TCP_SYN_PSHACK,
+              TR_TCP6_SYN_PSHACK,} traceroute_type;
 
 static const char *Tr_Type_String[] = {"ICMP6", "ICMP", "UDP6", "UDP",
               "TCP6_SYN", "TCP_SYN", "TCP6_ACK",
-              "TCP_ACK", "ICMP_REPLY"};
+              "TCP_ACK", "ICMP_REPLY", "TCP_SYN_PSHACK",
+              "TCP6_SYN_PSHACK"};
 
 extern int verbosity;
 #define func() do {fprintf(stdout,"\t>> %s:%s():%d\n",__FILE__,__FUNCTION__,__LINE__); } while (0)
