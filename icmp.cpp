@@ -120,6 +120,11 @@ ICMP4::ICMP4(struct ip *ip, struct icmp *icmp, uint32_t elapsed, bool _coarse): 
             uint16_t ss = in_cksum((unsigned short *)ptr, ntohs(eh->len)+4);
             //printf("*** ICMP computed checksum: %x\n", ntohs(ss));
             eh->cksum = save_cksum;
+
+            // cerr << "[DEBUG] ICMP Extension Version: " << (int)eh->ver << endl;
+            // cerr << "[DEBUG] ICMP Extension Length: " << ntohs(eh->len) << endl;
+            // cerr << "[DEBUG] Expected Checksum: " << hex << ntohs(eh->cksum) << dec << endl;
+
             if (ss != eh->cksum) {
                 cerr << "** ICMP extension checksum mismatch" << endl;
                 return;

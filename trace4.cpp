@@ -12,6 +12,103 @@
 #define PAYLOAD "GET / HTTP/1.1\r\nHost: " HOST "\r\n\r\n"
 #define PAYLOAD_LEN strlen(PAYLOAD) 
 
+static unsigned int tlsPayloadLength;
+static unsigned char *tlsPayload;
+static unsigned int totalPayloadLength;
+
+static void initialize_https_payload(){
+    // Current UNIX timestamp
+    time_t current_time = time(NULL);
+    uint32_t timestamp = htonl((uint32_t)current_time); // Convert to network byte order
+
+	unsigned char tlsHeader[] = {0x16, 0x03, 0x01};
+	unsigned char tlsLength[2];
+	unsigned char clientHello[] = {0x01};
+	unsigned char clientHelloLength[3];
+    unsigned char everythingBeforeSNI[] = {
+        0x03, 0x03, 0xc4, 0x33, 0xd7, 0xd9, 0x7a, 0x9d, 0xdc, 0x2b, 0x6c, 0xc0, 0x2b, 0x40, 0x3d, 0x31, 
+        0xf3, 0x29, 0x89, 0x6f, 0x6a, 0x5f, 0x52, 0x89, 0x2b, 0xb6, 0x2b, 0x1f, 0x6c, 0xa7, 0x08, 0xe1, 
+        0x33, 0x9e, 0x20, 0x0f, 0xa9, 0x83, 0xda, 0x1f, 0xb7, 0xfe, 0xb5, 0xf8, 0xb4, 0x66, 0x58, 0x2b, 
+        0xa1, 0xf3, 0xe0, 0xe4, 0x7a, 0x2d, 0xae, 0xd4, 0xe4, 0x21, 0x21, 0xa3, 0x82, 0xbc, 0xa1, 0xcc, 
+        0x70, 0x82, 0x2f, 0x00, 0x3e, 0x13, 0x02, 0x13, 0x03, 0x13, 0x01, 0xc0, 0x2c, 0xc0, 0x30, 0x00, 
+        0x9f, 0xcc, 0xa9, 0xcc, 0xa8, 0xcc, 0xaa, 0xc0, 0x2b, 0xc0, 0x2f, 0x00, 0x9e, 0xc0, 0x24, 0xc0, 
+        0x28, 0x00, 0x6b, 0xc0, 0x23, 0xc0, 0x27, 0x00, 0x67, 0xc0, 0x0a, 0xc0, 0x14, 0x00, 0x39, 0xc0, 
+        0x09, 0xc0, 0x13, 0x00, 0x33, 0x00, 0x9d, 0x00, 0x9c, 0x00, 0x3d, 0x00, 0x3c, 0x00, 0x35, 0x00, 
+        0x2f, 0x00, 0xff, 0x01, 0x00, 0x00, 0x00
+    };
+
+    unsigned int exampleDotComExtensionLength = 169;
+    unsigned int lengthDiffWithExampleDotCom = strlen(HOST) - strlen("example.com");
+    unsigned int extensionLength = exampleDotComExtensionLength + lengthDiffWithExampleDotCom;
+    everythingBeforeSNI[133] = (extensionLength >> 8) & 0xFF;
+    everythingBeforeSNI[134] = (extensionLength) & 0xFF;
+
+	unsigned char extensionType[] = {0x00, 0x00};
+	unsigned char serverNameExtensionLength[2];
+	unsigned char serverNameListLength[2];
+	unsigned char serverNameType[] = {0x00};
+	unsigned char serverNameLength[2];
+	unsigned char *serverName = (unsigned char *) HOST;
+	unsigned char everythingAfterSNI[] = {
+        0x00, 0x0b, 0x00, 0x04, 0x03, 0x00, 0x01, 0x02, 0x00, 0x0a, 0x00, 0x16, 0x00, 0x14, 0x00, 0x1d,
+        0x00, 0x17, 0x00, 0x1e, 0x00, 0x19, 0x00, 0x18, 0x01, 0x00, 0x01, 0x01, 0x01, 0x02, 0x01, 0x03,
+        0x01, 0x04, 0x00, 0x23, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00, 0x17, 0x00, 0x00, 0x00, 0x0d,
+        0x00, 0x2a, 0x00, 0x28, 0x04, 0x03, 0x05, 0x03, 0x06, 0x03, 0x08, 0x07, 0x08, 0x08, 0x08, 0x09,
+        0x08, 0x0a, 0x08, 0x0b, 0x08, 0x04, 0x08, 0x05, 0x08, 0x06, 0x04, 0x01, 0x05, 0x01, 0x06, 0x01,
+        0x03, 0x03, 0x03, 0x01, 0x03, 0x02, 0x04, 0x02, 0x05, 0x02, 0x06, 0x02, 0x00, 0x2b, 0x00, 0x05,
+        0x04, 0x03, 0x04, 0x03, 0x03, 0x00, 0x2d, 0x00, 0x02, 0x01, 0x01, 0x00, 0x33, 0x00, 0x26, 0x00,
+        0x24, 0x00, 0x1d, 0x00, 0x20, 0xcc, 0xea, 0x26, 0x12, 0x3f, 0xb4, 0x3d, 0xd9, 0x20, 0xdc, 0x63,
+        0x9d, 0x97, 0x1e, 0xc3, 0xa6, 0x5a, 0xcd, 0x84, 0xbb, 0x5b, 0x67, 0x67, 0xda, 0xe3, 0x77, 0x13,
+        0xc9, 0xc9, 0x44, 0x92, 0x00
+	};
+	unsigned int hostNameLength = strlen(HOST);
+    unsigned int payloadLength = 292 + hostNameLength + 5;
+    unsigned int clientHelloLengthValue = 288 + hostNameLength + 5;
+	tlsLength[0] = (payloadLength >> 8) & 0xFF;
+    tlsLength[1] = payloadLength & 0xFF;
+    clientHelloLength[0] = (clientHelloLengthValue >> 16) & 0xFF;
+    clientHelloLength[1] = (clientHelloLengthValue >> 8) & 0xFF;
+    clientHelloLength[2] = clientHelloLengthValue & 0xFF;
+    
+    serverNameExtensionLength[0] = (hostNameLength + 5) >> 8 & 0xFF;
+    serverNameExtensionLength[1] = (hostNameLength + 5) & 0xFF;
+    serverNameListLength[0] = (hostNameLength + 3) >> 8 & 0xFF;
+    serverNameListLength[1] = (hostNameLength + 3) & 0xFF;
+    serverNameLength[0] = hostNameLength >> 8 & 0xFF;
+    serverNameLength[1] = hostNameLength & 0xFF;
+
+	unsigned char* sni = (unsigned char *) malloc(9 + hostNameLength);
+    memcpy(sni, extensionType, 2);
+    memcpy(sni + 2, serverNameExtensionLength, 2);
+    memcpy(sni + 4, serverNameListLength, 2);
+    memcpy(sni + 6, serverNameType, 1);
+    memcpy(sni + 7, serverNameLength, 2);
+    memcpy(sni + 9, serverName, hostNameLength);
+    
+    int sniLength = 9 + hostNameLength;
+    tlsPayloadLength = sizeof(tlsHeader) + sizeof(tlsLength) + sizeof(clientHello) +
+        sizeof(clientHelloLength) + sizeof(everythingBeforeSNI) + sniLength + sizeof(everythingAfterSNI);
+
+	tlsPayload = (unsigned char *) malloc(tlsPayloadLength);
+    memcpy(tlsPayload, tlsHeader, sizeof(tlsHeader));
+    memcpy(tlsPayload + sizeof(tlsHeader), tlsLength, sizeof(tlsLength));
+    memcpy(tlsPayload + sizeof(tlsHeader) + sizeof(tlsLength), clientHello, sizeof(clientHello));
+    memcpy(tlsPayload + sizeof(tlsHeader) + sizeof(tlsLength) + sizeof(clientHello),
+           clientHelloLength, sizeof(clientHelloLength));
+    memcpy(tlsPayload + sizeof(tlsHeader) + sizeof(tlsLength) + sizeof(clientHello) +
+           sizeof(clientHelloLength), everythingBeforeSNI, sizeof(everythingBeforeSNI));
+    memcpy(tlsPayload + sizeof(tlsHeader) + sizeof(tlsLength) + sizeof(clientHello) +
+           sizeof(clientHelloLength) + sizeof(everythingBeforeSNI), sni, sniLength);
+    memcpy(tlsPayload + sizeof(tlsHeader) + sizeof(tlsLength) + sizeof(clientHello) +
+           sizeof(clientHelloLength) + sizeof(everythingBeforeSNI) + sniLength,
+           everythingAfterSNI, sizeof(everythingAfterSNI));
+
+	totalPayloadLength = sizeof(struct ip6_hdr) + sizeof(struct tcphdr) + tlsPayloadLength;
+
+	// free(sni);
+    // free(tls_payload);
+}
+
 Traceroute4::Traceroute4(YarrpConfig *_config, Stats *_stats) : Traceroute(_config, _stats)
 {
     if (config->testing) return;
@@ -208,6 +305,8 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
     }
 }
 
+
+// HTTP
 void
 Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
     // SYN
@@ -300,14 +399,119 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
      * bsd rawsock requires host ordered len and offset; rewrite here as
      * chksum must be over htons() versions
      */
-    u_short len = sizeof(struct tcphdr) + payloadlen;
-    tcp->th_sum = p_cksum(outip, (u_short *) tcp, len);
+    u_short len = sizeof(struct tcphdr) + PAYLOAD_LEN;
+    tcp->th_sum = p_cksum(outip, (u_short *) tcp, PAYLOAD_LEN);
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
         cout << ttl << " t=" << diff << endl;
     }
 }
+
+// //HTTPS
+// void
+// Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
+//     initialize_https_payload();
+
+
+//     // SYN
+//     unsigned char *ptr_syn = (unsigned char *)outip;
+//     struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl << 2));
+
+//     packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payloadlen;
+//     outip->ip_p = IPPROTO_TCP;
+// #if defined(_BSD) && !defined(_NEW_FBSD)
+//     outip->ip_len = packlen;
+//     outip->ip_off = 0; //IP_DF;
+// #else
+//     outip->ip_len = htons(packlen);
+// #endif
+//     /* encode destination IPv4 address as cksum(ipdst) */
+//     uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+//     tcp_syn->th_sport = htons(dport);
+//     tcp_syn->th_dport = htons(dstport);
+//     /* encode send time into seq no as elapsed milliseconds */
+//     uint32_t diff = elapsed();
+//     if (verbosity > HIGH) {
+//         cout << ">> TCP probe: ";
+//         probePrint(&target->sin_addr, ttl);
+//     }
+//     tcp_syn->th_seq = htonl(diff);
+//     tcp_syn->th_off = 5;
+//     tcp_syn->th_win = htons(0xFFFE);
+//     tcp_syn->th_sum = 0;
+
+//     tcp_syn->th_flags = TH_SYN;
+
+//     /*
+//      * explicitly computing cksum probably not required on most machines
+//      * these days as offloaded by OS or NIC.  but we'll be safe.
+//      */
+//     outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+//     /*
+//      * bsd rawsock requires host ordered len and offset; rewrite here as
+//      * chksum must be over htons() versions
+//      */
+//     u_short len_syn = sizeof(struct tcphdr) + payloadlen;
+//     tcp_syn->th_sum = p_cksum(outip, (u_short *) tcp_syn, len_syn);
+//     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+//         cout << __func__ << "(): error: " << strerror(errno) << endl;
+//         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+//         cout << ttl << " t=" << diff << endl;
+//     }
+
+//     // PSH+ACK
+//     unsigned char *ptr = (unsigned char *)outip;
+//     struct tcphdr *tcp = (struct tcphdr *)(ptr + (outip->ip_hl << 2));
+//     unsigned char *payload = (unsigned char *)tcp + (tcp->th_off << 2);
+
+//     packlen = sizeof(struct ip) + sizeof(struct tcphdr) + tlsPayloadLength;
+//     outip->ip_p = IPPROTO_TCP;
+// #if defined(_BSD) && !defined(_NEW_FBSD)
+//     outip->ip_len = packlen;
+//     outip->ip_off = 0; //IP_DF;
+// #else
+//     outip->ip_len = htons(packlen);
+// #endif
+//     /* Set HTTP GET request as TCP payload */
+//     memcpy(payload, tlsPayload, tlsPayloadLength);
+
+//     /* encode destination IPv4 address as cksum(ipdst) */
+//     //uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+//     tcp->th_sport = htons(dport);
+//     tcp->th_dport = htons(dstport);
+//     /* encode send time into seq no as elapsed milliseconds */
+//     // uint32_t diff = elapsed();
+//     // if (verbosity > HIGH) {
+//     //     cout << ">> TCP probe: ";
+//     //     probePrint(&target->sin_addr, ttl);
+//     // }
+//     tcp->th_seq = htonl(diff + 1);
+//     tcp->th_off = 5;
+//     tcp->th_win = htons(0xFFFE);
+//     tcp->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp);
+
+//     /* Set TCP flag to be PSH+ACK */
+//     tcp->th_flags = TH_PUSH | TH_ACK;
+//     tcp->th_ack = htonl(target->sin_addr.s_addr);
+
+//     /*
+//      * explicitly computing cksum probably not required on most machines
+//      * these days as offloaded by OS or NIC.  but we'll be safe.
+//      */
+//     outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+//     /*
+//      * bsd rawsock requires host ordered len and offset; rewrite here as
+//      * chksum must be over htons() versions
+//      */
+//     u_short len = sizeof(struct tcphdr) + tlsPayloadLength;
+//     tcp->th_sum = p_cksum(outip, (u_short *) tcp, len);
+//     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+//         cout << __func__ << "(): error: " << strerror(errno) << endl;
+//         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+//         cout << ttl << " t=" << diff << endl;
+//     }
+// }
 
 void
 Traceroute4::probeICMP(struct sockaddr_in *target, int ttl) {
