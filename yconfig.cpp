@@ -298,8 +298,12 @@ YarrpConfig::switch_output(string new_output){
         out = nullptr;
     }
 
+    output = (char *) malloc(UINT8_MAX);
     snprintf(output, UINT8_MAX, "%s", new_output.c_str());
     out = fopen(output, "a");
+    if (out == NULL) {
+        printf("Error opening file: %s\n", strerror(errno));
+    }
 }
 
 

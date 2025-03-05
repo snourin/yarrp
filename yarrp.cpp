@@ -327,13 +327,13 @@ main(int argc, char **argv) {
             /* After scanning, ask for new IP file to scan */
             std::cout << "Enter the path of a new IP file (or type 'exit' to quit):" << std::endl;
             std::string file_input;
-            //std::getline(std::cin, file_input);
-            file_input = "ips.txt";
+            // file_input = "ips.txt";
+            std::getline(std::cin, file_input);
 
-            // if (file_input == "exit") {
-            //     startTimeout = true;
-            //     break; // Exit if the user types 'exit'
-            // }
+            if (file_input == "exit") {
+                startTimeout = true;
+                break; // Exit if the user types 'exit'
+            }
 
             /* Try to open the file */
             std::ifstream ip_file(file_input);
@@ -345,8 +345,8 @@ main(int argc, char **argv) {
             /* Ask for a new output filename */
             std::cout << "Enter the output filename for this set of IPs:" << std::endl;
             std::string output_file;
-            output_file = "output2.yrp";
-            //std::getline(std::cin, output_file);
+            //output_file = "output2.yrp";
+            std::getline(std::cin, output_file);
 
             /* Update the output file in the configuration */
             if (config.output) {
@@ -356,8 +356,8 @@ main(int argc, char **argv) {
             /* Ask for which probe to use */
             std::cout << "Enter the type of probe to use for this set of IPs:" << std::endl;
             std::string new_probe;
-            new_probe = "TCP_SYN_PSHACK";
-            //std::getline(std::cin, new_probe);
+            //new_probe = "TCP_SYN_PSHACK";
+            std::getline(std::cin, new_probe);
 
             config.switch_probe(new_probe.c_str());
             config.switch_target(file_input);
@@ -371,8 +371,8 @@ main(int argc, char **argv) {
 
             std::cout << "New IPs loaded. Resuming scanning..." << std::endl;
             loop(&config, iplist, trace, tree, stats);  // Continue probing the new IPs
-            startTimeout = true;
-            break;
+            // startTimeout = true;
+            // break;
 
         }
     }
