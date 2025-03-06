@@ -315,7 +315,6 @@ main(int argc, char **argv) {
         }
 
         while (true) {
-
             /* Finished, cleanup */
             if (config.receive) {
                 if (config.output and not config.testing)
@@ -323,16 +322,52 @@ main(int argc, char **argv) {
                 else
                     stats->dump(stdout);
             }
+
+            std::string lockFile = "transit.lock";
+
+            // Done first round of yarrp scan, so release lock so ZMap can run
+            if (remove(lockFile.c_str()) == 0) {
+                cout << "Releasing lock for ZMap scan." << std::endl;
+            }
+            bool fileExists = false;
+
+            /* Check for whether ZMap has finished and has released the lock */
+            while (!std::filesystem::exists(lockFile)){
+                sleep(1);
+            } 
+
+            std::cout << "ZMap scan has finished. Proceeding with censorship yarrp scan." << std::endl;
             
-            /* After scanning, ask for new IP file to scan */
-            std::cout << "Enter the path of a new IP file (or type 'exit' to quit):" << std::endl;
+            /* Read transit config file */
+            int line_num = 0;
+            std::string line;
             std::string file_input;
-            // file_input = "ips.txt";
-            std::getline(std::cin, file_input);
+            std::string output_file;
+            std::string new_probe;
+            
+            std::ifstream config_file("transit.config");
+            
+            while (std::getline(config_file, line)) {
+                if (line_num == 0) {
+                    file_input = line;
+                }
+                else if (line_num == 1) {
+                    output_file = line;
+                }
+                else if (line_num == 2) {
+                    new_probe = line;
+                }
+
+                line_num += 1;
+            }
+
+            std::cout << file_input << std::endl;
+            std::cout << output_file << std::endl;
+            std::cout << new_probe << std::endl;
 
             if (file_input == "exit") {
                 startTimeout = true;
-                break; // Exit if the user types 'exit'
+                break; // Exit if the file_input is exit
             }
 
             /* Try to open the file */
@@ -342,22 +377,10 @@ main(int argc, char **argv) {
                 continue; // Try again if file can't be opened
             }
 
-            /* Ask for a new output filename */
-            std::cout << "Enter the output filename for this set of IPs:" << std::endl;
-            std::string output_file;
-            //output_file = "output2.yrp";
-            std::getline(std::cin, output_file);
-
             /* Update the output file in the configuration */
             if (config.output) {
                 free(config.output); // Free previously allocated memory
             }
-
-            /* Ask for which probe to use */
-            std::cout << "Enter the type of probe to use for this set of IPs:" << std::endl;
-            std::string new_probe;
-            //new_probe = "TCP_SYN_PSHACK";
-            std::getline(std::cin, new_probe);
 
             config.switch_probe(new_probe.c_str());
             config.switch_target(file_input);
@@ -371,8 +394,6 @@ main(int argc, char **argv) {
 
             std::cout << "New IPs loaded. Resuming scanning..." << std::endl;
             loop(&config, iplist, trace, tree, stats);  // Continue probing the new IPs
-            // startTimeout = true;
-            // break;
 
         }
     }

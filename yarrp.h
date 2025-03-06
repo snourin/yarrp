@@ -70,6 +70,9 @@
 #endif
 
 #include <iostream>
+#include <filesystem>
+#include <fstream>
+#include <cstdio>
 #include <vector>
 #include <map>
 #include <algorithm>
