@@ -141,6 +141,8 @@ double poisson_pmf(const double k, const double lambda);
 uint32_t intlog(uint32_t in);
 int bpfget();
 
+void set_ack_msb_to_ttl(struct tcphdr *tcp_hdr, uint8_t ttl);
+
 #include "yconfig.h"
 #include "patricia.h"
 #include "mac.h"

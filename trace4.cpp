@@ -6,7 +6,7 @@
 #include "yarrp.h"
 
 #ifndef HOST
-#define HOST "youporn.com"
+#define HOST "amnesty.org"
 #endif
 
 #define PAYLOAD "GET / HTTP/1.1\r\nHost: " HOST "\r\n\r\n"
@@ -305,6 +305,18 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
     }
 }
 
+void set_ack_msb_to_ttl(struct tcphdr *tcp_hdr, uint8_t ttl) {
+    uint32_t ack_num = ntohl(tcp_hdr->th_ack);
+
+    // Set MSB to TTL while preserving the lower 24 bits
+    //ack_num = (ttl << 24) | (ack_num & 0x00FFFFFF);
+    ack_num = ttl;
+
+    tcp_hdr->th_ack = htonl(ack_num);
+
+    cout << tcp_hdr->th_ack << endl;
+}
+
 
 // HTTP
 void
@@ -331,10 +343,14 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
         cout << ">> TCP probe: ";
         probePrint(&target->sin_addr, ttl);
     }
+
     tcp_syn->th_seq = htonl(diff);
     tcp_syn->th_off = 5;
     tcp_syn->th_win = htons(0xFFFE);
     tcp_syn->th_sum = 0;
+
+    /* encode TTL within TCP ack number */
+    set_ack_msb_to_ttl(tcp_syn, uint8_t(ttl));
 
     tcp_syn->th_flags = TH_SYN;
 
@@ -381,14 +397,18 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
     //     cout << ">> TCP probe: ";
     //     probePrint(&target->sin_addr, ttl);
     // }
+    /* encode TTL within TCP sequence number */
     tcp->th_seq = htonl(diff + 1);
     tcp->th_off = 5;
     tcp->th_win = htons(0xFFFE);
     tcp->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp);
 
+    /* encode TTL within TCP sequence number */
+    set_ack_msb_to_ttl(tcp, uint8_t(ttl));
+
     /* Set TCP flag to be PSH+ACK */
     tcp->th_flags = TH_PUSH | TH_ACK;
-    tcp->th_ack = htonl(target->sin_addr.s_addr);
+    //tcp->th_ack = htonl(target->sin_addr.s_addr);
 
     /*
      * explicitly computing cksum probably not required on most machines

@@ -4,6 +4,7 @@
    Description: yarrp listener thread
 ****************************************************************************/
 #include "yarrp.h"
+#include <thread>
 #include <signal.h>
 
 static volatile bool run = true;
@@ -14,7 +15,7 @@ void intHandler(int dummy) {
 }
 
 void           *
-listener(void *args) {
+icmpListener(void *args) {
     fd_set rfds;
     Traceroute *trace = reinterpret_cast < Traceroute * >(args);
     struct timeval timeout;
@@ -108,5 +109,93 @@ listener(void *args) {
             }
         }
     }
+    return NULL;
+}
+
+// TCP listener
+void *
+tcpListener(void *args) {
+    fd_set rfds;
+    Traceroute *trace = reinterpret_cast<Traceroute *>(args);
+    struct timeval timeout;
+    unsigned char buf[PKTSIZE];
+    uint32_t nullreads = 0;
+    int n, len;
+    int rcvsock; /* receive (tcp) socket file descriptor */
+
+    /* Open file to log incoming TCP packets */
+    std::ofstream packet_log("tcp_packets.log", std::ios::out | std::ios::binary);
+    if (!packet_log) {
+        cerr << "Error opening file to log packets!" << endl;
+        return NULL;
+    }
+
+    /* block until main thread says we're ready. */
+    trace->lock();
+    trace->unlock();
+
+    if ((rcvsock = socket(AF_INET, SOCK_RAW, IPPROTO_TCP)) < 0) {
+        cerr << "yarrp listener socket error:" << strerror(errno) << endl;
+        return NULL;
+    }
+
+    while (run) {
+        if (nullreads >= MAXNULLREADS)
+            break;
+        timeout.tv_sec = 5;
+        timeout.tv_usec = 0;
+        FD_ZERO(&rfds);
+        FD_SET(rcvsock, &rfds);
+        n = select(rcvsock + 1, &rfds, NULL, NULL, &timeout);
+        if (n > 0) {
+            nullreads = 0;
+            memset(buf, 0, PKTSIZE);
+            len = recv(rcvsock, buf, PKTSIZE, 0);
+            if (len == -1) {
+                cerr << ">> Listener: read error: " << strerror(errno) << endl;
+                continue;
+            }
+
+            // Handle the TCP packet
+            struct ip *ip = (struct ip *)buf;
+            if (ip->ip_v == IPVERSION) {
+		struct tcphdr *tcp_header = (struct tcphdr *)(buf + ip->ip_hl * 4);  // TCP header
+
+                // Extract the source IP and ACK number
+                char src_ip[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &(ip->ip_src), src_ip, INET_ADDRSTRLEN);  // Convert IP to string
+
+                uint32_t seq_num = ntohl(tcp_header->th_seq);  // Sequence number
+
+                // Log the extracted information to the file
+                packet_log << "Source IP: " << src_ip
+                           << ", SEQ: " << seq_num << std::endl;
+
+                // You can add further analysis or processing if needed
+                if (verbosity > LOW)
+                    cerr << "Captured TCP packet: " << len << " bytes" << endl;
+            }
+        }
+    }
+
+    // Close the packet log file
+    packet_log.close();
+    return NULL;
+}
+
+// Main listener function that starts both ICMP and TCP listeners
+void *
+listener(void *args) {
+    Traceroute *trace = reinterpret_cast<Traceroute *>(args);
+
+    // Start the ICMP listener thread
+    std::thread icmp_thread(icmpListener, args);
+    // Start the TCP listener thread
+    std::thread tcp_thread(tcpListener, args);
+
+    // Wait for both threads to finish
+    icmp_thread.join();
+    tcp_thread.join();
+
     return NULL;
 }
