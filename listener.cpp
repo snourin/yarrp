@@ -159,7 +159,7 @@ tcpListener(void *args) {
             // Handle the TCP packet
             struct ip *ip = (struct ip *)buf;
             if (ip->ip_v == IPVERSION) {
-		struct tcphdr *tcp_header = (struct tcphdr *)(buf + ip->ip_hl * 4);  // TCP header
+		        struct tcphdr *tcp_header = (struct tcphdr *)(buf + ip->ip_hl * 4);  // TCP header
 
                 // Extract the source IP and ACK number
                 char src_ip[INET_ADDRSTRLEN];
