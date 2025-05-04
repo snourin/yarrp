@@ -6,7 +6,7 @@
 #include "yarrp.h"
 
 #ifndef HOST
-#define HOST "amnesty.org"
+#define HOST "example.com"
 #endif
 
 #define PAYLOAD "GET / HTTP/1.1\r\nHost: " HOST "\r\n\r\n"
@@ -102,6 +102,8 @@ static void initialize_https_payload(){
     memcpy(tlsPayload + sizeof(tlsHeader) + sizeof(tlsLength) + sizeof(clientHello) +
            sizeof(clientHelloLength) + sizeof(everythingBeforeSNI) + sniLength,
            everythingAfterSNI, sizeof(everythingAfterSNI));
+
+    //this is wrong, it says ipv6, check this
 
 	totalPayloadLength = sizeof(struct ip6_hdr) + sizeof(struct tcphdr) + tlsPayloadLength;
 
@@ -321,6 +323,14 @@ void set_ack_msb_to_ttl(struct tcphdr *tcp_hdr, uint8_t ttl) {
 // HTTP
 void
 Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
+    std::string domain;
+    auto it = domain_map.find(target->sin_addr.s_addr);
+    if (it != domain_map.end()) {
+        domain = it->second;
+    } else {
+        domain = "example.com";  // fallback if no domain known
+    }
+
     // SYN
     unsigned char *ptr_syn = (unsigned char *)outip;
     struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl << 2));
@@ -376,7 +386,9 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
     struct tcphdr *tcp = (struct tcphdr *)(ptr + (outip->ip_hl << 2));
     unsigned char *payload = (unsigned char *)tcp + (tcp->th_off << 2);
 
-    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + PAYLOAD_LEN;
+    std::string payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
+
+    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payload_str.length();
     outip->ip_p = IPPROTO_TCP;
 #if defined(_BSD) && !defined(_NEW_FBSD)
     outip->ip_len = packlen;
@@ -385,7 +397,7 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
     outip->ip_len = htons(packlen);
 #endif
     /* Set HTTP GET request as TCP payload */
-    memcpy(payload, PAYLOAD, PAYLOAD_LEN);
+    memcpy(payload, payload_str.c_str(), payload_str.length());
 
     /* encode destination IPv4 address as cksum(ipdst) */
     //uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
@@ -419,8 +431,8 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
      * bsd rawsock requires host ordered len and offset; rewrite here as
      * chksum must be over htons() versions
      */
-    u_short len = sizeof(struct tcphdr) + PAYLOAD_LEN;
-    tcp->th_sum = p_cksum(outip, (u_short *) tcp, PAYLOAD_LEN);
+    u_short len = sizeof(struct tcphdr) + payload_str.length();
+    tcp->th_sum = p_cksum(outip, (u_short *) tcp, payload_str.length());
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";

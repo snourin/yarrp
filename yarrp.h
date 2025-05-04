@@ -159,4 +159,6 @@ void internet6(YarrpConfig *config, Traceroute *trace, Patricia *tree, Stats *st
 
 using namespace std;
 
+extern std::unordered_map<uint32_t, std::string> domain_map; // mapping from IP address to domain
+
 #endif  /* _YRP_H_ */

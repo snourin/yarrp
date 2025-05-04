@@ -1,6 +1,8 @@
 #include "yarrp.h"
 #include "random_list.h"
 
+std::unordered_map<uint32_t, std::string> domain_map;
+
 IPList::IPList(uint8_t _maxttl, bool _rand, bool _entire) : seeded(false) {
   perm = NULL;
   permsize = 0;
@@ -72,16 +74,39 @@ void IPList::read(char *in) {
 
 /* Read list of input IPs */
 void IPList4::read(std::istream& inlist) {
+  // std::string line;
+  // struct in_addr addr;
+  // while (getline(inlist, line)) {
+  //   if (!line.empty() && line[line.size() - 1] == '\r')
+  //     line.erase( std::remove(line.begin(), line.end(), '\r'), line.end() );
+  //   if (inet_aton(line.c_str(), &addr) != 1)
+  //     fatal("Couldn't parse IPv4 address: %s", line.c_str());
+  //   targets.push_back(addr.s_addr);
+  // }
+  // debug(LOW, ">> IPv4 targets: " << targets.size());
+
   std::string line;
   struct in_addr addr;
   while (getline(inlist, line)) {
     if (!line.empty() && line[line.size() - 1] == '\r')
       line.erase( std::remove(line.begin(), line.end(), '\r'), line.end() );
-    if (inet_aton(line.c_str(), &addr) != 1)
-      fatal("Couldn't parse IPv4 address: %s", line.c_str());
-    targets.push_back(addr.s_addr);
+
+    std::istringstream ss(line);
+    std::string ip_str, domain;
+    getline(ss, ip_str, ',');
+    getline(ss, domain);
+
+    if (inet_aton(ip_str.c_str(), &addr) != 1)
+        fatal("Couldn't parse IPv4 address: %s", ip_str.c_str());
+
+    uint32_t ip = addr.s_addr;
+    targets.push_back(ip);
+    if (!domain.empty())
+        domain_map[ip] = domain;
+
   }
   debug(LOW, ">> IPv4 targets: " << targets.size());
+
 }
 
 /* Read list of input IPs */
