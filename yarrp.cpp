@@ -325,18 +325,20 @@ main(int argc, char **argv) {
 
             std::string lockFile = "transit.lock";
 
-            // Done first round of yarrp scan, so release lock so ZMap can run
+            // Done first round of yarrp scan, so release lock so the transit.config 
+            // file can be modified for the next round of yarrp scanning
             if (remove(lockFile.c_str()) == 0) {
-                cout << "Releasing lock for ZMap scan." << std::endl;
+                cout << "Releasing lock for modification of transit.config file." << std::endl;
             }
             bool fileExists = false;
 
-            /* Check for whether ZMap has finished and has released the lock */
+            // Check for whether the modification of the transit.config file 
+            // has finished and the lock has been released */
             while (!std::filesystem::exists(lockFile)){
                 sleep(1);
             } 
 
-            std::cout << "ZMap scan has finished. Proceeding with censorship yarrp scan." << std::endl;
+            std::cout << "Modification of transit.config has finished . Proceeding with another yarrp scan." << std::endl;
             
             /* Read transit config file */
             int line_num = 0;

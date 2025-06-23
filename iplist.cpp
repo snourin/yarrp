@@ -92,9 +92,11 @@ void IPList4::read(std::istream& inlist) {
       line.erase( std::remove(line.begin(), line.end(), '\r'), line.end() );
 
     std::istringstream ss(line);
-    std::string ip_str, domain;
+    std::string ip_str, domain, country, as_num;
     getline(ss, ip_str, ',');
-    getline(ss, domain);
+    getline(ss, domain, ',');
+    getline(ss, country, ',');
+    getline(ss, as_num, ',');
 
     if (inet_aton(ip_str.c_str(), &addr) != 1)
         fatal("Couldn't parse IPv4 address: %s", ip_str.c_str());

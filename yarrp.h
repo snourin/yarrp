@@ -76,6 +76,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <unordered_map>
 
 #include "libcperm/cperm.h" 
 
