@@ -323,74 +323,70 @@ main(int argc, char **argv) {
                     stats->dump(stdout);
             }
 
-            std::string lockFile = "transit.lock";
+            std::cout << std::unitbuf;
+            
+            std:ifstream named_pipe(config.named_pipe);
 
-            // Done first round of yarrp scan, so release lock so the transit.config 
-            // file can be modified for the next round of yarrp scanning
-            if (remove(lockFile.c_str()) == 0) {
-                cout << "Releasing lock for modification of transit.config file." << std::endl;
+            if (! named_pipe.is_open()) {
+                std::cout << "Failed to open named pipe: " << config.named_pipe << std::endl;
+                return 1;
             }
-            bool fileExists = false;
 
-            // Check for whether the modification of the transit.config file 
-            // has finished and the lock has been released */
-            while (!std::filesystem::exists(lockFile)){
-                sleep(1);
+            std::string line; 
+            std::vector<string> lines;
+
+            // Read first line (input)
+            if (std::getline(named_pipe, line)) {
+                if (line == "exit"){
+                    startTimeout = true;
+                    break; //Exit out of inner loop
+                }
+
+                lines.push_back(line);
+            }
+
+            if (startTimeout){ // Exit out of outer loop
+                break;
+            }
+
+            // Read second line (output)
+            if (std::getline(named_pipe, line)) {
+                lines.push_back(line);
             } 
 
-            std::cout << "Modification of transit.config has finished . Proceeding with another yarrp scan." << std::endl;
-            
-            /* Read transit config file */
-            int line_num = 0;
-            std::string line;
-            std::string file_input;
-            std::string output_file;
-            std::string new_probe;
-            
-            std::ifstream config_file("transit.config");
-            
-            while (std::getline(config_file, line)) {
-                if (line_num == 0) {
-                    file_input = line;
-                }
-                else if (line_num == 1) {
-                    output_file = line;
-                }
-                else if (line_num == 2) {
-                    new_probe = line;
-                }
+            // Read third line (probe)
+            if (std::getline(named_pipe, line)) {
+                lines.push_back(line);
+            } 
 
-                line_num += 1;
-            }
+            const std::string& input = lines[0];
+            const std::string& output = lines[1];
+            const std::string& probe = lines[2];
 
-            std::cout << file_input << std::endl;
-            std::cout << output_file << std::endl;
-            std::cout << new_probe << std::endl;
+            std::cout << input << std::endl;
+            std::cout << output << std::endl;
+            std::cout << probe << std::endl;
 
-            if (file_input == "exit") {
-                startTimeout = true;
-                break; // Exit if the file_input is exit
-            }
-
-            /* Try to open the file */
-            std::ifstream ip_file(file_input);
+            // Open the input file
+            std::ifstream ip_file(input);
             if (!ip_file.is_open()) {
-                std::cerr << "Failed to open file: " << file_input << std::endl;
+                std::cout << "Failed to open file: " << input << std::endl;
                 continue; // Try again if file can't be opened
             }
 
-            /* Update the output file in the configuration */
-            if (config.output) {
-                free(config.output); // Free previously allocated memory
-            }
+            // // Update the output file in the configuration
+            // std::cout << "Output file: " << config.output << std::endl;
+            // if (config.output) {
+            //     free(config.output); // Free previously allocated memory
+            // }
 
-            config.switch_probe(new_probe.c_str());
-            config.switch_target(file_input);
-            config.switch_output(output_file);
-            /* Open the output file */
+            config.switch_probe(probe.c_str());
+            config.switch_target(input);
+            config.switch_output(output);
+            // Open the output file 
             config.dump();
 
-            /* Create new IP list and load new IPs from file */
+            // Create new IP list and load new IPs from file 
             iplist = new IPList4(config.maxttl, config.random_scan, config.entire);
             iplist->read(ip_file); // Read new IPs from the file
 

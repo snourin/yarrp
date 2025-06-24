@@ -28,6 +28,7 @@ class YarrpConfig {
   char *bgpfile;
   char *inlist;
   char *blocklist;
+  char *named_pipe;
   uint32_t count;
   uint8_t minttl;
   uint8_t maxttl;

@@ -12,6 +12,7 @@ static struct option long_options[] = {
     {"blocklist", required_argument, NULL, 'B'},
     {"coarse", required_argument, NULL, 'C'},
     {"count", required_argument, NULL, 'c'},
+    {"named_pipe", required_argument, NULL, 'f'},
     {"fillmode", required_argument, NULL, 'F'},
     {"poisson", required_argument, NULL, 'Z'},
     {"srcmac", required_argument, NULL, 'M'},
@@ -36,7 +37,7 @@ static struct option long_options[] = {
     {"instance", required_argument, NULL, 'E'}, 
     {"granularity", required_argument, NULL, 'g'},
     {"v6eh", required_argument, NULL, 'X'}, 
-    {"version", no_argument, NULL, 'V'}, 
+    {"version", no_argument, NULL, 'V'},
     {NULL, 0, NULL, 0},
 };
 
@@ -64,7 +65,7 @@ YarrpConfig::parse_opts(int argc, char **argv) {
 #endif
     params["RTT_Granularity"] = val_t("us", true);
     params["Targets"] = val_t("entire", true);
-    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CE:F:G:g:hi:I:l:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
+    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CE:f:F:G:g:hi:I:l:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
         switch (c) {
         case 'b':
             bgpfile = optarg;
@@ -85,6 +86,10 @@ YarrpConfig::parse_opts(int argc, char **argv) {
         case 'c':
             count = strtol(optarg, &endptr, 10);
             params["Count"] = val_t(to_string(count), true);
+            break;
+        case 'f':
+            named_pipe = optarg;
+            params["Named_Pipe"] = val_t(named_pipe, true);
             break;
         case 'F':
             fillmode = strtol(optarg, &endptr, 10);
@@ -293,17 +298,19 @@ YarrpConfig::switch_probe(const char * new_probe){
 
 void
 YarrpConfig::switch_output(string new_output){
-    if (out) {
-        fclose(out);
-        out = nullptr;
-    }
+    // if (out) {
+    //     fclose(out);
+    //     out = nullptr;
+    // }
 
-    output = (char *) malloc(UINT8_MAX);
-    snprintf(output, UINT8_MAX, "%s", new_output.c_str());
-    out = fopen(output, "a");
-    if (out == NULL) {
-        printf("Error opening file: %s\n", strerror(errno));
-    }
+    // output = (char *) malloc(UINT8_MAX);
+    // snprintf(output, UINT8_MAX, "%s", new_output.c_str());
+    // out = fopen(output, "a");
+    // if (out == NULL) {
+    //     printf("Error opening file: %s\n", strerror(errno));
+    // }
+
+    params["Output"] = val_t(output, true);
 }
 
 
@@ -331,6 +338,7 @@ YarrpConfig::usage(char *prog) {
     << "  -b, --bgp               BGP table (default: none)" << endl
     << "  -B, --blocklist         Prefix blocklist (default: none)" << endl
     << "  -Q, --entire            Entire IPv4/IPv6 Internet (default: off)" << endl
+    << "  -f, --named_pipe        Named pipe for censorship scan" << endl
 
     << "TTL options:" << endl
     << "  -l, --minttl            Minimum TTL (default: 1)" << endl
