@@ -195,7 +195,7 @@ listener(void *args) {
 
     // Wait for both threads to finish
     icmp_thread.join();
-    tcp_thread.join();
+    //tcp_thread.join();
 
     return NULL;
 }
