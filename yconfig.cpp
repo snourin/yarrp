@@ -298,19 +298,19 @@ YarrpConfig::switch_probe(const char * new_probe){
 
 void
 YarrpConfig::switch_output(string new_output){
-    // if (out) {
-    //     fclose(out);
-    //     out = nullptr;
-    // }
+    if (out) {
+        fclose(out);
+        out = nullptr;
+    }
 
-    // output = (char *) malloc(UINT8_MAX);
-    // snprintf(output, UINT8_MAX, "%s", new_output.c_str());
-    // out = fopen(output, "a");
-    // if (out == NULL) {
-    //     printf("Error opening file: %s\n", strerror(errno));
-    // }
+    output = (char *) malloc(UINT8_MAX);
+    snprintf(output, UINT8_MAX, "%s", new_output.c_str());
+    out = fopen(output, "a");
+    if (out == NULL) {
+        printf("Error opening file: %s\n", strerror(errno));
+    }
 
-    params["Output"] = val_t(output, true);
+    // params["Output"] = val_t(output, true);
 }
 
 

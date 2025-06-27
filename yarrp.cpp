@@ -314,6 +314,13 @@ main(int argc, char **argv) {
             loop(&config, iplist, trace, tree, stats);
         }
 
+        std:ifstream named_pipe(config.named_pipe);
+
+        if (! named_pipe.is_open()) {
+            std::cout << "Failed to open named pipe: " << config.named_pipe << std::endl;
+            return 1;
+        }
+
         while (true) {
             /* Finished, cleanup */
             if (config.receive) {
@@ -323,14 +330,9 @@ main(int argc, char **argv) {
                     stats->dump(stdout);
             }
 
-            std::cout << std::unitbuf;
-            
-            std:ifstream named_pipe(config.named_pipe);
+            std::cout << "IN LOOP" << std::endl; 
 
-            if (! named_pipe.is_open()) {
-                std::cout << "Failed to open named pipe: " << config.named_pipe << std::endl;
-                return 1;
-            }
+            std::cout << std::unitbuf;
 
             std::string line; 
             std::vector<string> lines;
@@ -374,11 +376,14 @@ main(int argc, char **argv) {
                 continue; // Try again if file can't be opened
             }
 
-            // // Update the output file in the configuration
-            // std::cout << "Output file: " << config.output << std::endl;
-            // if (config.output) {
-            //     free(config.output); // Free previously allocated memory
-            // }
+            // Update the output file in the configuration
+            std::cout << "Output file: " << config.output << std::endl;
+            
+            std::string t = "/home/sadia/global-collateral-damage/scanning_scripts/yarrp_inputs/input1.csv";
+
+            if ((config.output) && (input.compare(t) != 0)){
+                free(config.output); // Free previously allocated memory
+            }
 
             config.switch_probe(probe.c_str());
             config.switch_target(input);
