@@ -302,15 +302,29 @@ YarrpConfig::switch_output(string new_output){
         fclose(out);
         out = nullptr;
     }
-
-    output = (char *) malloc(UINT8_MAX);
     snprintf(output, UINT8_MAX, "%s", new_output.c_str());
     out = fopen(output, "a");
     if (out == NULL) {
         printf("Error opening file: %s\n", strerror(errno));
     }
 
+    params["Output"] = val_t(new_output, true);
+
     // params["Output"] = val_t(output, true);
+
+    // /* set default output file, if not set */
+    // if (not output) {
+    //     output = (char *) malloc(UINT8_MAX);
+    //     snprintf(output, UINT8_MAX, "output.yrp");
+    // }
+    // debug(DEBUG, ">> Output: " << output);
+    // /* set output file */
+    // if ( (output)[0] == '-')
+    //     out = stdout;
+    // else
+    //     out = fopen(output, "a");
+    // if (out == NULL)
+    //     fatal("%s: cannot open %s: %s", __func__, output, strerror(errno));
 }
 
 

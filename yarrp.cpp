@@ -315,6 +315,7 @@ main(int argc, char **argv) {
         }
 
         std:ifstream named_pipe(config.named_pipe);
+        static bool output_name_allocated = false;
 
         if (! named_pipe.is_open()) {
             std::cout << "Failed to open named pipe: " << config.named_pipe << std::endl;
@@ -376,20 +377,25 @@ main(int argc, char **argv) {
                 continue; // Try again if file can't be opened
             }
 
-            // Update the output file in the configuration
-            std::cout << "Output file: " << config.output << std::endl;
-            
-            std::string t = "/home/sadia/global-collateral-damage/scanning_scripts/yarrp_inputs/input1.csv";
-
-            if ((config.output) && (input.compare(t) != 0)){
-                free(config.output); // Free previously allocated memory
-            }
+            // if ((config.output) && (output_name_allocated)){
+            //     free(config.output); // Free previously allocated memory
+            // }
 
             config.switch_probe(probe.c_str());
             config.switch_target(input);
             config.switch_output(output);
+
+            // We allocated memory for the new output name
+            output_name_allocated = true;
+
             // Open the output file 
             config.dump();
+
+            // Delete the previous iplist
+            if (iplist != nullptr) {
+                delete iplist;
+                iplist = nullptr;
+            }
 
             // Create new IP list and load new IPs from file 
             iplist = new IPList4(config.maxttl, config.random_scan, config.entire);
