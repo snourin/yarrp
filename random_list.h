@@ -47,6 +47,7 @@ class IPList {
   virtual void read(std::istream& in) = 0;
   uint32_t count() { return permsize; }
   void setkey(int seed);
+  virtual bool contains() { return false; }
 
   protected:
   uint8_t log2(uint8_t x);
@@ -73,6 +74,7 @@ class IPList4 : public IPList {
   uint32_t next_address(struct in6_addr *in, uint8_t * ttl) { return 0; };
   void read(std::istream& in);
   void seed();
+  bool contains(uint32_t ip);
 
   private:
   std::vector<uint32_t> targets;
@@ -89,6 +91,7 @@ class IPList6 : public IPList {
   uint32_t next_address(struct in_addr *in, uint8_t * ttl) { return 0; };
   void read(std::istream& in);
   void seed();
+  bool contains(in6_addr ip);
 
   private:
   std::vector<struct in6_addr> targets;

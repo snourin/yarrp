@@ -366,20 +366,12 @@ main(int argc, char **argv) {
             const std::string& output = lines[1];
             const std::string& probe = lines[2];
 
-            std::cout << input << std::endl;
-            std::cout << output << std::endl;
-            std::cout << probe << std::endl;
-
             // Open the input file
             std::ifstream ip_file(input);
             if (!ip_file.is_open()) {
                 std::cout << "Failed to open file: " << input << std::endl;
                 continue; // Try again if file can't be opened
             }
-
-            // if ((config.output) && (output_name_allocated)){
-            //     free(config.output); // Free previously allocated memory
-            // }
 
             config.switch_probe(probe.c_str());
             config.switch_target(input);
@@ -398,8 +390,13 @@ main(int argc, char **argv) {
             }
 
             // Create new IP list and load new IPs from file 
-            iplist = new IPList4(config.maxttl, config.random_scan, config.entire);
-            iplist->read(ip_file); // Read new IPs from the file
+            if (config.ipv6)
+                iplist = new IPList6(config.maxttl, config.random_scan, config.entire);
+            else
+                iplist = new IPList4(config.maxttl, config.random_scan, config.entire);
+
+            // Read new IPs from the file
+            iplist->read(ip_file);
 
             std::cout << "New IPs loaded. Resuming scanning..." << std::endl;
             loop(&config, iplist, trace, tree, stats);  // Continue probing the new IPs

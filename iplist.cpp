@@ -239,3 +239,7 @@ uint32_t IPList6::next_address_rand(struct in6_addr *in, uint8_t * ttl) {
   *ttl = (next & ttlmask);
   return 1;
 }
+
+bool IPList4::contains(uint32_t ip) const {
+
+}

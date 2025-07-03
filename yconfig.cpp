@@ -211,14 +211,22 @@ YarrpConfig::parse_opts(int argc, char **argv) {
             output = (char *) malloc(UINT8_MAX);
             snprintf(output, UINT8_MAX, "output.yrp");
         }
+
         debug(DEBUG, ">> Output: " << output);
         /* set output file */
-        if ( (output)[0] == '-')
+        if ( (output)[0] == '-') {
             out = stdout;
-        else
-            out = fopen(output, "a");
+            tcp_out = stdout;
+        } else {
+            std::string out_filename = std::string(output) + ".icmp";
+            std::string tcp_out_filename = std::string(output) + ".tcp";
+            out = fopen(out_filename.c_str(), "a");
+            tcp_out = fopen(tcp_out_filename.c_str(), "a");
+        }
         if (out == NULL)
             fatal("%s: cannot open %s: %s", __func__, output, strerror(errno));
+        if (tcp_out == NULL)
+            fatal("%s: cannot open %s: %s", __func__, tcp_output, strerror(errno));
     }
 
     /* set default destination port based on tracetype, if not set */
@@ -298,33 +306,30 @@ YarrpConfig::switch_probe(const char * new_probe){
 
 void
 YarrpConfig::switch_output(string new_output){
+    // For ICMP
     if (out) {
         fclose(out);
         out = nullptr;
     }
     snprintf(output, UINT8_MAX, "%s", new_output.c_str());
-    out = fopen(output, "a");
+    std::string out_filename = std::string(output) + ".icmp";
+    out = fopen(out_filename.c_str(), "a");
     if (out == NULL) {
         printf("Error opening file: %s\n", strerror(errno));
     }
 
+    // For TCP
+    if (tcp_out) {
+        fclose(tcp_out);
+        tcp_out = nullptr;
+    }
+    std::string tcp_out_filename = std::string(output) + ".tcp";
+    tcp_out = fopen(tcp_out_filename.c_str(), "a");
+    if (tcp_out == NULL) {
+        printf("Error opening file: %s\n", strerror(errno));
+    }
+
     params["Output"] = val_t(new_output, true);
-
-    // params["Output"] = val_t(output, true);
-
-    // /* set default output file, if not set */
-    // if (not output) {
-    //     output = (char *) malloc(UINT8_MAX);
-    //     snprintf(output, UINT8_MAX, "output.yrp");
-    // }
-    // debug(DEBUG, ">> Output: " << output);
-    // /* set output file */
-    // if ( (output)[0] == '-')
-    //     out = stdout;
-    // else
-    //     out = fopen(output, "a");
-    // if (out == NULL)
-    //     fatal("%s: cannot open %s: %s", __func__, output, strerror(errno));
 }
 
 

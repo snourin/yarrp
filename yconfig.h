@@ -4,18 +4,18 @@ typedef std::map<std::string, val_t> params_t;
 class YarrpConfig {
   public:
   YarrpConfig() : rate(10), random_scan(true), ttl_neighborhood(0),
-    testing(false), entire(false), output(NULL), 
+    testing(false), entire(false), output(NULL), tcp_output(NULL),
     bgpfile(NULL), inlist(NULL), blocklist(NULL),
     count(0), minttl(1), maxttl(16), seed(0),
-    dstport(80),
+    dstport(80), named_pipe(NULL),
     ipv6(false), int_name(NULL), dstmac(NULL), srcmac(NULL), 
     coarse(false), fillmode(32), poisson(0),
-    probesrc(NULL), probe(true), receive(true), instance(0), v6_eh(255), out(NULL) {};
+    probesrc(NULL), probe(true), receive(true), instance(0), v6_eh(255), out(NULL), tcp_out(NULL){};
 
   void parse_opts(int argc, char **argv); 
   void usage(char *prog);
   void set(std::string, std::string, bool);
-  void dump() { if (output) dump(out); }
+  void dump() { if (output) dump(out); if (tcp_output) dump(tcp_out);}
   void switch_output(std::string);
   void switch_target(std::string);
   void switch_probe(const char *);
@@ -25,6 +25,7 @@ class YarrpConfig {
   bool testing; 
   bool entire;  /* speed as sole emphasis, to scan entire Internet */
   char *output;
+  char *tcp_output;
   char *bgpfile;
   char *inlist;
   char *blocklist;
@@ -49,6 +50,7 @@ class YarrpConfig {
   uint8_t v6_eh;
   uint8_t granularity;
   FILE *out;   /* output file stream */
+  FILE *tcp_out; /* tcp output file stream */
   params_t params;
 
   private:
