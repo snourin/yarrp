@@ -154,6 +154,7 @@ void set_ack_msb_to_ttl(struct tcphdr *tcp_hdr, uint8_t ttl);
 #include "random_list.h"
 #include "trace.h"
 #include "icmp.h"
+#include "tcp.h"
 
 void internet(YarrpConfig *config, Traceroute *trace, Patricia *tree, Stats *stats);
 void internet6(YarrpConfig *config, Traceroute *trace, Patricia *tree, Stats *stats);

@@ -111,7 +111,7 @@ static void initialize_https_payload(){
     // free(tls_payload);
 }
 
-Traceroute4::Traceroute4(YarrpConfig *_config, Stats *_stats) : Traceroute(_config, _stats)
+Traceroute4::Traceroute4(YarrpConfig *_config, Stats *_stats, IPList *_iplist) : Traceroute(_config, _stats)
 {
     if (config->testing) return;
     memset(&source, 0, sizeof(struct sockaddr_in)); 
@@ -133,6 +133,8 @@ Traceroute4::Traceroute4(YarrpConfig *_config, Stats *_stats) : Traceroute(_conf
     sndsock = raw_sock(&source);
     if (config->probe and config->receive) {
         lock();   /* grab mutex; make listener thread block. */
+
+        iplist = _iplist;
         pthread_create(&recv_thread, NULL, listener, this);
     }
 }

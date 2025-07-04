@@ -289,6 +289,9 @@ YarrpConfig::switch_probe(const char * new_probe){
     } else if(strcmp(new_probe, "TCP6_ACK") == 0) {
         ipv6 = true;
         type = TR_TCP6_ACK;
+    } else if(strcmp(new_probe, "TCP6_SYN_PSHACK") == 0) {
+        ipv6 = true;
+        type = TR_TCP6_SYN_PSHACK;
     } else if(strcmp(new_probe, "ICMP") == 0) {
         type = TR_ICMP;
     } else if(strcmp(new_probe, "ICMP_REPLY") == 0) {
@@ -299,9 +302,11 @@ YarrpConfig::switch_probe(const char * new_probe){
         type = TR_TCP_SYN;
     } else if(strcmp(new_probe, "TCP_ACK") == 0) {
         type = TR_TCP_ACK;
+    } else if(strcmp(new_probe, "TCP_SYN_PSHACK") == 0) {
+        type = TR_TCP_SYN_PSHACK;
     }
 
-    params["Trace_Type"] = val_t(Tr_Type_String[type], true);
+    params["Trace_Type"] = val_t(Tr_Type_String[type], true); //should I change this?
 }
 
 void

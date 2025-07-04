@@ -241,5 +241,14 @@ uint32_t IPList6::next_address_rand(struct in6_addr *in, uint8_t * ttl) {
 }
 
 bool IPList4::contains(uint32_t ip) const {
+    return std::find(targets.begin(), targets.end(), ip) != targets.end();
+}
 
+bool IPList6::contains(const struct in6_addr& ip) const {
+    for (const auto& addr : targets) {
+        if (memcmp(&addr, &ip, sizeof(struct in6_addr)) == 0) {
+            return true;
+        }
+    }
+    return false;
 }

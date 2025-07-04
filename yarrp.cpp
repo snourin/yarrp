@@ -288,7 +288,7 @@ main(int argc, char **argv) {
     if (config.ipv6)
         trace = new Traceroute6(&config, stats);
     else
-        trace = new Traceroute4(&config, stats);
+        trace = new Traceroute4(&config, stats, iplist);
 
     trace->addTree(tree);
 

@@ -4,6 +4,7 @@ bin_PROGRAMS = yarrp
 
 yarrp_SOURCES = \
   icmp.cpp \
+  tcp.cpp \
   iplist.cpp \
   listener.cpp \
   listener6.cpp \
@@ -29,6 +30,7 @@ yarrp_SOURCES = \
 
 include_HEADERS = \
   icmp.h \
+  tcp.h \
   mac.h \
   patricia.h \
   random_list.h \

@@ -57,13 +57,14 @@ class Traceroute {
 
 class Traceroute4 : public Traceroute {
     public:
-    Traceroute4(YarrpConfig *config, Stats *stats);
+    Traceroute4(YarrpConfig *config, Stats *stats, IPList *iplist);
     virtual ~Traceroute4();
     struct sockaddr_in *getSource() { return &source; }
     void probe(const char *, int);
     void probe(uint32_t, int);
     void probe(struct sockaddr_in *, int);
     void probePrint(struct in_addr *, int);
+    IPList* getIPList() { return iplist; }
 
     private:
     void probeUDP(struct sockaddr_in *, int);
@@ -73,6 +74,7 @@ class Traceroute4 : public Traceroute {
     struct ip *outip;
     struct sockaddr_in source;
     char addrstr[INET_ADDRSTRLEN];
+    IPList *iplist;
 };
 
 class Traceroute6 : public Traceroute {
@@ -83,6 +85,7 @@ class Traceroute6 : public Traceroute {
     void probe(struct in6_addr, int);
     void probePrint(struct in6_addr, int);
     void probe(void *, struct in6_addr, int);
+    IPList* getIPList() { return iplist; }
 
     private:
     void make_transport(int);
@@ -96,6 +99,7 @@ class Traceroute6 : public Traceroute {
     struct sockaddr_in6 source6;
     struct ypayload *payload;
     char addrstr[INET6_ADDRSTRLEN];
+    IPList *iplist;
 };
 
 /* For calculating TCP checksum, taken from Zmap */
