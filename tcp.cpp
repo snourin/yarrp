@@ -12,6 +12,9 @@ TCP::~TCP() {
 }
 
 TCP4::TCP4(struct ip *ip_hdr, struct tcphdr *tcp_hdr) {
+    ip_src = ip_hdr->ip_src;
+    ip_dst = ip_hdr->ip_dst;
+
     sport = ntohs(tcp_hdr->th_sport);
     dport = ntohs(tcp_hdr->th_dport);
     ttl = ip_hdr->ip_ttl;
@@ -33,6 +36,9 @@ TCP4::TCP4(struct ip *ip_hdr, struct tcphdr *tcp_hdr) {
 }
 
 TCP6::TCP6(struct ip6_hdr *ip6_header, struct tcphdr *tcp_hdr) {
+    ip_src = ip6_header->ip6_src;
+    ip_dst = ip6_header->ip6_dst;
+
     sport = ntohs(tcp_hdr->th_sport);
     dport = ntohs(tcp_hdr->th_dport);
     ttl = ip6_header->ip6_hlim;

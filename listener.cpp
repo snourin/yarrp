@@ -39,6 +39,7 @@ listener(void *args) {
     if ((tcpsock = socket(AF_INET, SOCK_RAW, IPPROTO_TCP)) < 0) {
         cerr << "yarrp TCP socket error: " << strerror(errno) << endl;
     }
+    
 
     while (true) {
         if (nullreads >= MAXNULLREADS)
@@ -127,16 +128,13 @@ listener(void *args) {
 
                 ip = (struct ip *) buf;
                 if ((ip->ip_p == IPPROTO_TCP)) {
-                    struct tcphdr *tcp_hdr = (struct tcphdr *) (buf + ((ip->ip_hl) << 2));
+                    struct tcphdr *tcp_hdr = (struct tcphdr *)(buf + ip->ip_hl * 4); 
                     TCP *tcp = new TCP4(ip, tcp_hdr);
                     Traceroute4 *trace4 = static_cast<Traceroute4 *>(trace);
 
-                    tcp->write(&(trace->config->tcp_out));
-                    // tcp->print();
-
-                    // if (trace4->getIPList()->contains(tcp->getSrc())) {
-                    //     tcp->write(&(trace->config->tcp_out));
-                    // }
+                    if (trace4->getIPList()->contains(tcp->getSrc())) {
+                        tcp->write(&(trace->config->tcp_out));
+                    }
 
                     delete tcp;
                 }
