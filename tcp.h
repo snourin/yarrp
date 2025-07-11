@@ -21,6 +21,9 @@ class TCP {
     uint16_t getWindow() { return window; }
     uint16_t getChecksum() { return checksum; }
     uint16_t getUrgPtr() { return urg_ptr; }
+    void setInstanceId();
+    void setTriggeredTTL();
+    bool fromYarrp(bool);
     void print(char *, char *);
     void write(FILE **, char *, char *);
 
@@ -29,7 +32,9 @@ class TCP {
     uint16_t dport;
     uint16_t ipid;
     uint32_t ttl;
-    uint32_t ttl_triggered;
+    uint8_t ttl_triggered;
+    uint8_t instance_id;
+    uint8_t given_instance_id;
     uint16_t payload_len;
     uint16_t total_len;
     uint32_t seq;
@@ -43,11 +48,12 @@ class TCP {
 
 class TCP4: public TCP {
     public:
-    TCP4(struct ip *, struct tcphdr *);
+    TCP4(struct ip *, struct tcphdr *, uint8_t);
     uint32_t getSrc() { return ip_src.s_addr; }
     uint32_t getDst() { return ip_dst.s_addr; }
     void print();
     void write(FILE **);
+    bool fromYarrp();
 
     private:
     struct in_addr ip_src;
@@ -56,11 +62,12 @@ class TCP4: public TCP {
 
 class TCP6: public TCP {
     public:
-    TCP6(struct ip6_hdr *, struct tcphdr *);
+    TCP6(struct ip6_hdr *, struct tcphdr *, uint8_t);
     struct in6_addr *getSrc6() { return &ip_src; }
     struct in6_addr *getDst6() { return &ip_dst; }
     void print() override;
     void write(FILE **);
+    bool fromYarrp();
 
     private:
     struct in6_addr ip_src;

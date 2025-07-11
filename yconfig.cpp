@@ -224,9 +224,9 @@ YarrpConfig::parse_opts(int argc, char **argv) {
             tcp_out = fopen(tcp_out_filename.c_str(), "a");
         }
         if (out == NULL)
-            fatal("%s: cannot open %s: %s", __func__, output, strerror(errno));
+            fatal("%s: cannot open %s: %s", __func__, out_filename, strerror(errno));
         if (tcp_out == NULL)
-            fatal("%s: cannot open %s: %s", __func__, tcp_output, strerror(errno));
+            fatal("%s: cannot open %s: %s", __func__, tcp_out_filename, strerror(errno));
     }
 
     /* set default destination port based on tracetype, if not set */

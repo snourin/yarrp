@@ -129,12 +129,17 @@ listener(void *args) {
                 ip = (struct ip *) buf;
                 if ((ip->ip_p == IPPROTO_TCP)) {
                     struct tcphdr *tcp_hdr = (struct tcphdr *)(buf + ip->ip_hl * 4); 
-                    TCP *tcp = new TCP4(ip, tcp_hdr);
+                    TCP4 *tcp = new TCP4(ip, tcp_hdr, trace->config->instance);
+                    TCP4 *tcp4 = static_cast<TCP4 *>(tcp);
                     Traceroute4 *trace4 = static_cast<Traceroute4 *>(trace);
 
-                    if (trace4->getIPList()->contains(tcp->getSrc())) {
+                    if (tcp4->fromYarrp()) {
                         tcp->write(&(trace->config->tcp_out));
                     }
+
+                    // if (trace4->getIPList()->contains(tcp->getSrc())) {
+                    //     tcp->write(&(trace->config->tcp_out));
+                    // }
 
                     delete tcp;
                 }

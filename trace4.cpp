@@ -194,7 +194,7 @@ Traceroute4::probe(struct sockaddr_in *target, int ttl) {
     } else if ( (TR_TCP_SYN == config->type) || (TR_TCP_ACK == config->type) ) {
         probeTCP(target, ttl);
     } else if (TR_TCP_SYN_PSHACK == config->type) {
-        probeTCPSYNPSHACK(target, ttl);
+        probeTCPSYNPSHACK(target, ttl, config->instance);
     } else {
         cerr << "** bad trace type:" << config->type << endl;
         assert(false);
@@ -309,22 +309,24 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
     }
 }
 
-void set_ack_msb_to_ttl(struct tcphdr *tcp_hdr, uint8_t ttl) {
+void set_ack_msb_to_ttl_instance_id(struct tcphdr *tcp_hdr, uint8_t ttl, uint8_t instance_id) {
+    const uint32_t TTL_MASK = 0b11111u << 27;
+    const uint32_t INSTANCE_ID_MASK = 0xFFu << 19;
+
     uint32_t ack_num = ntohl(tcp_hdr->th_ack);
 
-    // Set MSB to TTL while preserving the lower 24 bits
-    //ack_num = (ttl << 24) | (ack_num & 0x00FFFFFF);
-    ack_num = ttl;
+    // Clear all bits in the first 13 positions, and keep the last 19 bits as is
+    ack_num &= ~(TTL_MASK | INSTANCE_ID_MASK);
+
+    ack_num |= ((ttl & 0x1F) << 27); //Only take first 5 bits from ttl
+    ack_num |= (((instance_id) & 0xFF) << 19); 
 
     tcp_hdr->th_ack = htonl(ack_num);
-
-    cout << tcp_hdr->th_ack << endl;
 }
-
 
 // HTTP
 void
-Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
+Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
     std::string domain;
     auto it = domain_map.find(target->sin_addr.s_addr);
     if (it != domain_map.end()) {
@@ -335,7 +337,8 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
 
     // SYN
     unsigned char *ptr_syn = (unsigned char *)outip;
-    struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl << 2));
+    struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl * 4));
+    memset(tcp_syn, 0, sizeof(struct tcphdr));
 
     packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payloadlen;
     outip->ip_p = IPPROTO_TCP;
@@ -350,19 +353,19 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
     tcp_syn->th_sport = htons(dport);
     tcp_syn->th_dport = htons(dstport);
     /* encode send time into seq no as elapsed milliseconds */
-    uint32_t diff = elapsed();
+    uint32_t diff_2 = elapsed();
     if (verbosity > HIGH) {
         cout << ">> TCP probe: ";
         probePrint(&target->sin_addr, ttl);
     }
 
-    tcp_syn->th_seq = htonl(diff);
+    tcp_syn->th_seq = htonl(diff_2);
     tcp_syn->th_off = 5;
     tcp_syn->th_win = htons(0xFFFE);
     tcp_syn->th_sum = 0;
 
     /* encode TTL within TCP ack number */
-    set_ack_msb_to_ttl(tcp_syn, uint8_t(ttl));
+    set_ack_msb_to_ttl_instance_id(tcp_syn, uint8_t(ttl), instance_id);
 
     tcp_syn->th_flags = TH_SYN;
 
@@ -380,13 +383,13 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
-        cout << ttl << " t=" << diff << endl;
+        cout << ttl << " t=" << diff_2 << endl;
     }
 
     // PSH+ACK
     unsigned char *ptr = (unsigned char *)outip;
-    struct tcphdr *tcp = (struct tcphdr *)(ptr + (outip->ip_hl << 2));
-    unsigned char *payload = (unsigned char *)tcp + (tcp->th_off << 2);
+    struct tcphdr *tcp = (struct tcphdr *)(ptr + (outip->ip_hl * 4));
+    unsigned char *payload = (unsigned char *)tcp + (tcp->th_off * 4);
 
     std::string payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
 
@@ -406,19 +409,19 @@ Traceroute4::probeTCPSYNPSHACK(struct sockaddr_in *target, int ttl) {
     tcp->th_sport = htons(dport);
     tcp->th_dport = htons(dstport);
     /* encode send time into seq no as elapsed milliseconds */
-    // uint32_t diff = elapsed();
-    // if (verbosity > HIGH) {
-    //     cout << ">> TCP probe: ";
-    //     probePrint(&target->sin_addr, ttl);
-    // }
+    uint32_t diff = elapsed();
+    if (verbosity > HIGH) {
+        cout << ">> TCP probe: ";
+        probePrint(&target->sin_addr, ttl);
+    }
     /* encode TTL within TCP sequence number */
-    tcp->th_seq = htonl(diff + 1);
+    tcp->th_seq = diff; //htonl(diff + 1);
     tcp->th_off = 5;
     tcp->th_win = htons(0xFFFE);
     tcp->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp);
 
     /* encode TTL within TCP sequence number */
-    set_ack_msb_to_ttl(tcp, uint8_t(ttl));
+    set_ack_msb_to_ttl_instance_id(tcp, uint8_t(ttl), instance_id);
 
     /* Set TCP flag to be PSH+ACK */
     tcp->th_flags = TH_PUSH | TH_ACK;

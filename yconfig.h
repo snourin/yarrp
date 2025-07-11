@@ -15,7 +15,7 @@ class YarrpConfig {
   void parse_opts(int argc, char **argv); 
   void usage(char *prog);
   void set(std::string, std::string, bool);
-  void dump() { if (output) dump(out); if (tcp_output) dump(tcp_out);}
+  void dump() { if (output) dump(out); dump(tcp_out);}
   void switch_output(std::string);
   void switch_target(std::string);
   void switch_probe(const char *);

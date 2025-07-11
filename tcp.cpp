@@ -11,7 +11,7 @@ TCP::~TCP() {
 
 }
 
-TCP4::TCP4(struct ip *ip_hdr, struct tcphdr *tcp_hdr) {
+TCP4::TCP4(struct ip *ip_hdr, struct tcphdr *tcp_hdr, uint8_t yarrp_instance_id) {
     ip_src = ip_hdr->ip_src;
     ip_dst = ip_hdr->ip_dst;
 
@@ -32,10 +32,13 @@ TCP4::TCP4(struct ip *ip_hdr, struct tcphdr *tcp_hdr) {
     total_len = ntohs(ip_hdr->ip_len) - ip_hdr_len;
     payload_len = total_len - tcp_hdr_len;
 
-    ttl_triggered = seq;
+    given_instance_id = yarrp_instance_id;
+
+    setTriggeredTTL();
+    setInstanceId();
 }
 
-TCP6::TCP6(struct ip6_hdr *ip6_header, struct tcphdr *tcp_hdr) {
+TCP6::TCP6(struct ip6_hdr *ip6_header, struct tcphdr *tcp_hdr, uint8_t yarrp_instance_id) {
     ip_src = ip6_header->ip6_src;
     ip_dst = ip6_header->ip6_dst;
 
@@ -54,7 +57,10 @@ TCP6::TCP6(struct ip6_hdr *ip6_header, struct tcphdr *tcp_hdr) {
     total_len = ntohs(ip6_header->ip6_plen);
     payload_len = total_len - tcp_hdr_len;
 
-    ttl_triggered = seq;
+    given_instance_id = yarrp_instance_id;
+
+    setTriggeredTTL();
+    setInstanceId();
 }
 
 void TCP::print(char *src, char *dst) {
@@ -68,6 +74,7 @@ void TCP::print(char *src, char *dst) {
     printf("\tPayload Len: %d Total Len: %d\n", payload_len, total_len);
     printf("\tTTL Triggered: %d\n", ttl_triggered);
     printf("\nWindow: %u Checksum: %u Urg Ptr: %u\n", window, checksum, urg_ptr);
+    printf("\nInstance ID: %d\n", instance_id);
 }
 
 void TCP4::print() {
@@ -99,7 +106,7 @@ void TCP6::print() {
 
 }
 
-/* trgt, sec, usec, sport, dport, ttl, ipid, src, seq, ack, flags, payload_len, total_len, ttl_triggered, window, checksum, urg_ptr, count */
+/* trgt, sec, usec, sport, dport, ttl, ipid, src, seq, ack, flags, payload_len, total_len, ttl_triggered, window, checksum, urg_ptr, instance_id */
 void TCP::write(FILE ** out, char *src, char *target) {
     if (*out == NULL)
         return;
@@ -109,8 +116,8 @@ void TCP::write(FILE ** out, char *src, char *target) {
         ttl, ipid, src, seq, ack);
     fprintf(*out, "%d %d %d %d ",
         flags, payload_len, total_len, ttl_triggered);
-    fprintf(*out, "%u %u %u\n", window, checksum, urg_ptr);
-    // fprintf(*out, "%d\n", count);
+    fprintf(*out, "%u %u %u ", window, checksum, urg_ptr);
+    fprintf(*out, "%d\n", instance_id);
 }
 
 void TCP4::write(FILE ** out) {
@@ -127,4 +134,44 @@ void TCP6::write(FILE ** out) {
     inet_ntop(AF_INET6, &ip_src, src, INET6_ADDRSTRLEN);
     inet_ntop(AF_INET6, &ip_dst, dst, INET6_ADDRSTRLEN);
     TCP::write(out, src, dst);
+}
+
+void TCP::setInstanceId() {
+    const uint32_t INSTANCE_ID_MASK = 0xFFu << 19;
+    instance_id = (seq & INSTANCE_ID_MASK) >> 19;
+}
+
+void TCP::setTriggeredTTL() {
+    const uint32_t TTL_MASK = 0b11111u << 27;
+    ttl_triggered = (seq & TTL_MASK) >> 27;
+}
+
+bool TCP::fromYarrp(bool sport_checksum_valid) {
+    if ((sport_checksum_valid) && (instance_id == given_instance_id)) {
+        return true;
+    }
+
+    return false;
+}
+
+bool TCP4::fromYarrp() {
+    bool sport_checksum_valid = false;
+    uint16_t sport_check = in_cksum((unsigned short *)&ip_src, 4);
+    if (dport == sport_check) {
+        sport_checksum_valid = true;
+    }
+
+    if (ip_src.s_addr == inet_addr("185.233.141.162")){
+        cout << "Sport Check: " << sport_check << std::endl;
+        cout << "Dport: " << dport << std::endl;
+        cout << "Extracted Instance ID : " << instance_id << std::endl;
+        cout << "Given Instance ID : " << given_instance_id << std::endl;
+    }
+
+    return TCP::fromYarrp(sport_checksum_valid);
+}
+
+bool TCP6::fromYarrp() {
+    //TO-DO
+    return TCP::fromYarrp(false);
 }

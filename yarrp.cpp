@@ -325,8 +325,10 @@ main(int argc, char **argv) {
         while (true) {
             /* Finished, cleanup */
             if (config.receive) {
-                if (config.output and not config.testing)
+                if (config.output and not config.testing) {
                     stats->dump(trace->config->out);
+                    stats->dump(trace->config->tcp_out);
+                }
                 else
                     stats->dump(stdout);
             }
