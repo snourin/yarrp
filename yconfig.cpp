@@ -223,10 +223,14 @@ YarrpConfig::parse_opts(int argc, char **argv) {
             out = fopen(out_filename.c_str(), "a");
             tcp_out = fopen(tcp_out_filename.c_str(), "a");
         }
-        if (out == NULL)
-            fatal("%s: cannot open %s: %s", __func__, out_filename, strerror(errno));
-        if (tcp_out == NULL)
-            fatal("%s: cannot open %s: %s", __func__, tcp_out_filename, strerror(errno));
+        if (out == NULL) {
+            std::string out_filename = std::string(output) + ".icmp";
+            fatal("%s: cannot open %s: %s", __func__, out_filename.c_str(), strerror(errno));
+        }
+        if (tcp_out == NULL) {
+            std::string tcp_out_filename = std::string(output) + ".tcp";
+            fatal("%s: cannot open %s: %s", __func__, tcp_out_filename.c_str(), strerror(errno));
+        }
     }
 
     /* set default destination port based on tracetype, if not set */
@@ -251,7 +255,8 @@ YarrpConfig::parse_opts(int argc, char **argv) {
     params["Max_TTL"] = val_t(to_string(maxttl), true);
     params["TTL_Nbrhd"] = val_t(to_string(ttl_neighborhood), true);
     params["Dst_Port"] = val_t(to_string(dstport), true);
-    params["Output_Fields"] = val_t("target sec usec type code ttl hop rtt ipid psize rsize rttl rtos mpls count", true);
+    params["Output_Fields_ICMP"] = val_t("target sec usec type code ttl hop rtt ipid psize rsize rttl rtos mpls count", true);
+    params["Output_Fields_TCP"] = val_t("target sec usec sport dport ttl ipid src seq ack flags payload_len total_len ttl_triggered window checksum urg_ptr instance_id", true);
 }
 
 
