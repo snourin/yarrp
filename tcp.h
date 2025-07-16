@@ -21,7 +21,7 @@ class TCP {
     uint16_t getWindow() { return window; }
     uint16_t getChecksum() { return checksum; }
     uint16_t getUrgPtr() { return urg_ptr; }
-    void setInstanceId();
+    void setInstance();
     void setTriggeredTTL();
     bool fromYarrp(bool);
     void print(char *, char *);
@@ -33,8 +33,8 @@ class TCP {
     uint16_t ipid;
     uint32_t ttl;
     uint8_t ttl_triggered;
-    uint8_t instance_id;
-    uint8_t given_instance_id;
+    uint8_t instance;
+    uint8_t given_instance;
     uint16_t payload_len;
     uint16_t total_len;
     uint32_t seq;

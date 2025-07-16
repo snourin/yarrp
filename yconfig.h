@@ -9,7 +9,7 @@ class YarrpConfig {
     count(0), minttl(1), maxttl(16), seed(0),
     dstport(80), named_pipe(NULL),
     ipv6(false), int_name(NULL), dstmac(NULL), srcmac(NULL), 
-    coarse(false), fillmode(32), poisson(0),
+    coarse(false), fillmode(32), poisson(0), use_https(false),
     probesrc(NULL), probe(true), receive(true), instance(0), v6_eh(255), out(NULL), tcp_out(NULL){};
 
   void parse_opts(int argc, char **argv); 
@@ -19,6 +19,7 @@ class YarrpConfig {
   void switch_output(std::string);
   void switch_target(std::string);
   void switch_probe(const char *);
+  void switch_instance(uint8_t);
   unsigned int rate;
   bool random_scan;
   uint8_t ttl_neighborhood;
@@ -49,6 +50,7 @@ class YarrpConfig {
   uint8_t instance;
   uint8_t v6_eh;
   uint8_t granularity;
+  bool use_https;
   FILE *out;   /* output file stream */
   FILE *tcp_out; /* tcp output file stream */
   params_t params;

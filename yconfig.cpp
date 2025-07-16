@@ -4,6 +4,9 @@
    Description: yarrp runtime configuration parsing
 ****************************************************************************/
 #include "yarrp.h"
+#define HTTP 1
+#define HTTPS 2
+
 int verbosity;
 
 static struct option long_options[] = {
@@ -38,6 +41,8 @@ static struct option long_options[] = {
     {"granularity", required_argument, NULL, 'g'},
     {"v6eh", required_argument, NULL, 'X'}, 
     {"version", no_argument, NULL, 'V'},
+    {"http", no_argument, NULL, 1},
+    {"https", no_argument, NULL, 2},
     {NULL, 0, NULL, 0},
 };
 
@@ -199,6 +204,12 @@ YarrpConfig::parse_opts(int argc, char **argv) {
             v6_eh = strtol(optarg, &endptr, 10);
             break;
         case 'h':
+        case HTTP:
+            use_https = false;
+            break;
+        case HTTPS:
+            use_https = true;
+            break;
         default:
             usage(argv[0]);
         }
@@ -256,7 +267,7 @@ YarrpConfig::parse_opts(int argc, char **argv) {
     params["TTL_Nbrhd"] = val_t(to_string(ttl_neighborhood), true);
     params["Dst_Port"] = val_t(to_string(dstport), true);
     params["Output_Fields_ICMP"] = val_t("target sec usec type code ttl hop rtt ipid psize rsize rttl rtos mpls count", true);
-    params["Output_Fields_TCP"] = val_t("target sec usec sport dport ttl ipid src seq ack flags payload_len total_len ttl_triggered window checksum urg_ptr instance_id", true);
+    params["Output_Fields_TCP"] = val_t("target sec usec sport dport ttl ipid src seq ack flags payload_len total_len ttl_triggered window checksum urg_ptr instance", true);
 }
 
 
@@ -342,6 +353,11 @@ YarrpConfig::switch_output(string new_output){
     params["Output"] = val_t(new_output, true);
 }
 
+void
+YarrpConfig::switch_instance(uint8_t new_instance) {
+    instance = new_instance;
+    params["Instance"] = val_t(to_string(new_instance), true);
+}
 
 void
 YarrpConfig::usage(char *prog) {
@@ -383,6 +399,10 @@ YarrpConfig::usage(char *prog) {
     << "  -M, --srcmac            MAC of probing host (default: auto)" << endl
     << "  -g, --granularity       Granularity to probe input subnets (default: 50)" << endl
     << "  -X, --v6eh              Ext Header number to add (default: none)" << endl
+
+    << "HTTP(S) mode options (censorship-only): " << endl
+    << "      --http              Use HTTP packet sequence probes (default if neither specified)" << endl
+    << "      --https             Use HTTPS packet sequence probes" << endl
 
 /* Undocumented options */
 //    << "  -C, --coarse            Coarse ms timestamps (default: us)" << endl

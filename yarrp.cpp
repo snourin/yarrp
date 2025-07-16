@@ -311,7 +311,24 @@ main(int argc, char **argv) {
         debug(LOW, ">> Probing begins.");
         if (config.entire or config.inlist) {
             /* Start scanning with current IP list */
-            loop(&config, iplist, trace, tree, stats);
+            pid_t pid = fork();
+            if (pid == 0) { // Child process
+                // Run tcpdump
+                std::string pcap_filename = std::string(config.output) + ".pcap";
+                int pcap_result = execlp("tcpdump", "tcpdump", "-i", "any", "-w", pcap_filename.c_str(), NULL);
+                if (pcap_result == -1) {
+                    std::cout << "Failed to run tcpdump" << std::endl;
+                }
+
+            } else if (pid > 0) { // Parent process
+                loop(&config, iplist, trace, tree, stats);
+                sleep(5);
+                kill(pid, SIGINT); // Stop tcpdump
+                waitpid(pid, nullptr, 0);
+                std::cout << "Successfully stopped tcpdump" << std::endl;
+            } else {
+                std::cout << "Failed to fork for tcpdump" << std::endl;
+            }
         }
 
         std:ifstream named_pipe(config.named_pipe);
@@ -364,9 +381,15 @@ main(int argc, char **argv) {
                 lines.push_back(line);
             } 
 
+            // Read fourth line (instance)
+            if (std::getline(named_pipe, line)) {
+                lines.push_back(line);
+            } 
+
             const std::string& input = lines[0];
             const std::string& output = lines[1];
             const std::string& probe = lines[2];
+            uint8_t instance = uint8_t(std::stoi(lines[3]));
 
             // Open the input file
             std::ifstream ip_file(input);
@@ -378,6 +401,7 @@ main(int argc, char **argv) {
             config.switch_probe(probe.c_str());
             config.switch_target(input);
             config.switch_output(output);
+            config.switch_instance(instance);
 
             // We allocated memory for the new output name
             output_name_allocated = true;
@@ -401,8 +425,27 @@ main(int argc, char **argv) {
             iplist->read(ip_file);
 
             std::cout << "New IPs loaded. Resuming scanning..." << std::endl;
-            loop(&config, iplist, trace, tree, stats);  // Continue probing the new IPs
 
+
+            // Continue probing the new IPs
+            pid_t pid = fork();
+            if (pid == 0) { // Child process
+                // Run tcpdump
+                std::string pcap_filename = std::string(output) + ".pcap";
+                int pcap_result = execlp("tcpdump", "tcpdump", "-i", "any", "-w", pcap_filename.c_str(), NULL);
+                if (pcap_result == -1) {
+                    std::cout << "Failed to run tcpdump" << std::endl;
+                }
+
+            } else if (pid > 0) { // Parent process
+                loop(&config, iplist, trace, tree, stats); 
+                sleep(5);
+                kill(pid, SIGINT); // Stop tcpdump
+                waitpid(pid, nullptr, 0);
+                std::cout << "Successfully stopped tcpdump" << std::endl;
+            } else {
+                std::cout << "Failed to fork for tcpdump" << std::endl;
+            }
         }
     }
 

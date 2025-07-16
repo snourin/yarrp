@@ -69,7 +69,8 @@ class Traceroute4 : public Traceroute {
     private:
     void probeUDP(struct sockaddr_in *, int);
     void probeTCP(struct sockaddr_in *, int);
-    void probeTCPSYNPSHACK(struct sockaddr_in *, int, uint8_t);
+    void probeTCPSYNPSHACK_HTTP(struct sockaddr_in *, int, uint8_t);
+    void probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *, int, uint8_t);
     void probeICMP(struct sockaddr_in *, int);
     struct ip *outip;
     struct sockaddr_in source;
