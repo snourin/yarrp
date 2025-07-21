@@ -313,7 +313,7 @@ void set_ack_msb_to_ttl_instance_id(struct tcphdr *tcp_hdr, uint8_t ttl, uint8_t
     // Clear all bits in the first 14 positions, and keep the last 18 bits as is
     ack_num &= ~(TTL_MASK | INSTANCE_ID_MASK);
 
-    ack_num |= ((ttl & 0x20) << 26); //Only take first 6 bits from ttl
+    ack_num |= ((ttl & 0x3F) << 26); //Only take first 6 bits from ttl
     ack_num |= (((instance_id) & 0xFF) << 18); 
 
     tcp_hdr->th_ack = htonl(ack_num);
