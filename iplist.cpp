@@ -1,8 +1,8 @@
 #include "yarrp.h"
 #include "random_list.h"
 
-std::unordered_map<uint32_t, std::string> domain_map;
-std::unordered_map<std::string, std::string> domain_map_v6;
+std::unordered_map<uint32_t, std::pair<std::string, int>> domain_map;
+std::unordered_map<std::string, std::pair<std::string, int>> domain_map_v6;
 
 IPList::IPList(uint8_t _maxttl, bool _rand, bool _entire) : seeded(false) {
   perm = NULL;
@@ -93,11 +93,14 @@ void IPList4::read(std::istream& inlist) {
       line.erase(std::remove(line.begin(), line.end(), '\r'), line.end() );
 
     std::istringstream ss(line);
-    std::string ip_str, domain, country, as_num;
+    std::string ip_str, domain, country, as_num, domain_index_str;
     getline(ss, ip_str, ',');
     getline(ss, domain, ',');
     getline(ss, country, ',');
-    getline(ss, as_num);
+    getline(ss, as_num, ',');
+    getline(ss, domain_index_str);
+
+    int domain_index = stoi(domain_index_str);
 
     if (inet_aton(ip_str.c_str(), &addr) != 1)
         fatal("Couldn't parse IPv4 address: %s", ip_str.c_str());
@@ -105,7 +108,7 @@ void IPList4::read(std::istream& inlist) {
     uint32_t ip = addr.s_addr;
     targets.push_back(ip);
     if (!domain.empty())
-        domain_map[ip] = domain;
+        domain_map[ip] = {domain, domain_index};
 
   }
   debug(LOW, ">> IPv4 targets: " << targets.size());
@@ -131,18 +134,21 @@ void IPList6::read(std::istream& inlist) {
       line.erase(std::remove(line.begin(), line.end(), '\r'), line.end() );
 
     std::istringstream ss(line);
-    std::string ip_str, domain, country, as_num;
+    std::string ip_str, domain, country, as_num, domain_index_str;
     getline(ss, ip_str, ',');
     getline(ss, domain, ',');
     getline(ss, country, ',');
-    getline(ss, as_num);
+    getline(ss, as_num, ',');
+    getline(ss, domain_index_str);
+
+    int domain_index = stoi(domain_index_str);
 
     if (inet_pton(AF_INET6, ip_str.c_str(), &addr) != 1)
         fatal("Couldn't parse IPv6 address: %s", ip_str.c_str());
 
     targets.push_back(addr);
     if (!domain.empty())
-        domain_map_v6[ip_str] = domain;
+        domain_map_v6[ip_str] = {domain, domain_index};
   }
 
   debug(LOW, ">> IPv6 targets: " << targets.size());

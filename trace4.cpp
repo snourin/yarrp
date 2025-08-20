@@ -307,11 +307,14 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
 void
 Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
     std::string domain;
+    int domain_index;
     auto it = domain_map.find(target->sin_addr.s_addr);
     if (it != domain_map.end()) {
-        domain = it->second;
+        domain = it->second.first;
+        domain_index = it->second.second;
     } else {
         domain = "example.com";  // fallback if no domain found
+        domain_index = 2;
     }
 
     // SYN
@@ -326,9 +329,18 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
 #else
     outip->ip_len = htons(packlen);
 #endif
-    /* encode destination IPv4 address as cksum(ipdst) */
-    uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
-    tcp_syn->th_sport = htons(dport);
+    // /* encode destination IPv4 address as cksum(ipdst) */
+    // uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+
+    const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+	const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+	uint16_t pkt_sport = 0;
+
+	pkt_sport |= (domain_index & 0x1FF) << 7;
+	pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip_dst), 4) >> 9) & 0x7F);
+
+    tcp_syn->th_sport = htons(pkt_sport);
     tcp_syn->th_dport = htons(dstport);
     /* encode send time into seq no as elapsed milliseconds */
     uint32_t syn_diff = elapsed();
@@ -385,7 +397,7 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
 
     /* encode destination IPv4 address as cksum(ipdst) */
     //uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
-    tcp_pshack->th_sport = htons(dport);
+    tcp_pshack->th_sport = htons(pkt_sport);
     tcp_pshack->th_dport = htons(dstport);
     /* encode send time into seq no as elapsed milliseconds */
     uint32_t pshack_diff = elapsed();
@@ -426,11 +438,14 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
 void
 Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
     std::string domain;
+    int domain_index;
     auto it = domain_map.find(target->sin_addr.s_addr);
     if (it != domain_map.end()) {
-        domain = it->second;
+        domain = it->second.first;
+        domain_index = it->second.second;
     } else {
         domain = "example.com";  // fallback if no domain found
+        domain_index = 2;
     }
 
     initialize_https_payload(domain.c_str());
@@ -447,9 +462,18 @@ Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_
 #else
     outip->ip_len = htons(packlen);
 #endif
-    /* encode destination IPv4 address as cksum(ipdst) */
-    uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
-    tcp_syn->th_sport = htons(dport);
+    // /* encode destination IPv4 address as cksum(ipdst) */
+    // uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+
+    const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+	const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+	uint16_t pkt_sport = 0;
+
+	pkt_sport |= (domain_index & 0x1FF) << 7;
+	pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip_dst), 4) >> 9) & 0x7F);
+
+    tcp_syn->th_sport = htons(pkt_sport);
     tcp_syn->th_dport = htons(dstport);
     /* encode send time into seq no as elapsed milliseconds */
     uint32_t syn_diff = elapsed();
@@ -504,7 +528,7 @@ Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_
 
     /* encode destination IPv4 address as cksum(ipdst) */
     //uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
-    tcp_pshack->th_sport = htons(dport);
+    tcp_pshack->th_sport = htons(pkt_sport);
     tcp_pshack->th_dport = htons(dstport);
     /* encode send time into seq no as elapsed milliseconds */
     uint32_t pshack_diff = elapsed();

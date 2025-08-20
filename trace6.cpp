@@ -241,13 +241,18 @@ uint64_t set_low_bits(uint32_t id, uint8_t instance, uint8_t ttl, uint16_t fudge
 void 
 Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool censorship_second_pkt) {
     std::string domain;
+    int domain_index;
     char ip_str[INET6_ADDRSTRLEN];
+
     inet_ntop(AF_INET6, &addr, ip_str, sizeof(ip_str));
+
     auto it = domain_map_v6.find(ip_str);
     if (it != domain_map_v6.end()) {
-        domain = it->second;
+        domain = it->second.first;
+        domain_index = it->second.second;
     } else {
         domain = "example.com";  // fallback if no domain found
+        domain_index = 2;
     }
 
     void *transport = frame + ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len;
@@ -293,7 +298,16 @@ Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool
         tcp->th_sum = crafted_cksum;
     } else if (config->type == TR_TCP6_SYN_PSHACK) {
         struct tcphdr *tcp = (struct tcphdr *)transport; 
-        tcp->th_sport = htons(sum); //change later
+
+        const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+        const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+        uint16_t pkt_sport = 0;
+
+        pkt_sport |= (domain_index & 0x1FF) << 7;
+        pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip6_dst), 16) >> 9) & 0x7F);
+
+        tcp->th_sport = htons(pkt_sport);
         tcp->th_dport = htons(dstport);
         tcp->th_off = 5;
         tcp->th_win = htons(65535);
