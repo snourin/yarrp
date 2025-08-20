@@ -304,21 +304,6 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
     }
 }
 
-void set_ack_msb_to_ttl_instance_id(struct tcphdr *tcp_hdr, uint8_t ttl, uint8_t instance_id) {
-    const uint32_t TTL_MASK = 0b111111u << 26;
-    const uint32_t INSTANCE_ID_MASK = 0xFFu << 18;
-
-    uint32_t ack_num = ntohl(tcp_hdr->th_ack);
-
-    // Clear all bits in the first 14 positions, and keep the last 18 bits as is
-    ack_num &= ~(TTL_MASK | INSTANCE_ID_MASK);
-
-    ack_num |= ((ttl & 0x3F) << 26); //Only take first 6 bits from ttl
-    ack_num |= (((instance_id) & 0xFF) << 18); 
-
-    tcp_hdr->th_ack = htonl(ack_num);
-}
-
 void
 Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
     std::string domain;

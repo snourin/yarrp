@@ -32,6 +32,7 @@ class Traceroute {
     uint32_t elapsed();
     void lock();
     void unlock();
+    void set_ack_msb_to_ttl_instance_id(struct tcphdr *tcp_hdr, uint8_t ttl, uint8_t instance_id);
     virtual void probe(uint32_t, int) {};
     virtual void probe(struct sockaddr_in *, int) {};
     virtual void probePrint(struct in_addr *, int) {};
@@ -64,8 +65,7 @@ class Traceroute4 : public Traceroute {
     void probe(uint32_t, int);
     void probe(struct sockaddr_in *, int);
     void probePrint(struct in_addr *, int);
-    IPList* getIPList() { return iplist; }
-
+    
     private:
     void probeUDP(struct sockaddr_in *, int);
     void probeTCP(struct sockaddr_in *, int);
@@ -86,10 +86,9 @@ class Traceroute6 : public Traceroute {
     void probe(struct in6_addr, int);
     void probePrint(struct in6_addr, int);
     void probe(void *, struct in6_addr, int);
-    IPList* getIPList() { return iplist; }
 
     private:
-    void make_transport(int);
+    void make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool censorship_second_pkt = false);
     void make_frag_eh(uint8_t);
     void make_hbh_eh(uint8_t);
     struct ip6_hdr *outip;
@@ -101,6 +100,7 @@ class Traceroute6 : public Traceroute {
     struct ypayload *payload;
     char addrstr[INET6_ADDRSTRLEN];
     IPList *iplist;
+    uint32_t censored_syn_seq_num;
 };
 
 /* For calculating TCP checksum, taken from Zmap */

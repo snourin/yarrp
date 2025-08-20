@@ -51,6 +51,9 @@ void *listener6(void *args) {
     struct ip6_hdr *ip = NULL;                /* IPv6 hdr */
     struct icmp6_hdr *ippayload = NULL;       /* ICMP6 hdr */
     int rcvsock;                              /* receive (icmp) socket file descriptor */
+#ifdef _LINUX
+    int tcpsock; /* receive tcp socket file descriptor */
+#endif    
 
     /* block until main thread says we're ready. */
     trace->lock(); 
@@ -73,6 +76,10 @@ void *listener6(void *args) {
     if (bind(rcvsock, (struct sockaddr*) &sll, sizeof(sll)) < 0) {
         fatal("Bind to PF_PACKET socket");
     }
+
+    if ((tcpsock = socket(AF_INET6, SOCK_RAW, IPPROTO_TCP)) < 0) {
+        cerr << "yarrp TCP6 socket error: " << strerror(errno) << endl;
+    }
 #else
     /* Init BPF */
     size_t blen = 0;
@@ -90,7 +97,9 @@ void *listener6(void *args) {
         timeout.tv_usec = 0;
         FD_ZERO(&rfds);
         FD_SET(rcvsock, &rfds);
-        n = select(rcvsock + 1, &rfds, NULL, NULL, &timeout);
+        FD_SET(tcpsock, &rfds);
+        int maxfd = max(rcvsock, tcpsock);
+        n = select(maxfd + 1, &rfds, NULL, NULL, &timeout);
         if (n == 0) {
             nullreads++;
             cerr << ">> Listener: timeout " << nullreads;
@@ -102,7 +111,12 @@ void *listener6(void *args) {
         }
         nullreads = 0;
         memset(buf, 0, PKTSIZE);
-        len = recv(rcvsock, buf, PKTSIZE, 0); 
+
+        if (FD_ISSET(rcvsock, &rfds)) {
+            len = recv(rcvsock, buf, PKTSIZE, 0); 
+        } else if (tcpsock, &rfds) {
+            len = recv(tcpsock, buf, PKTSIZE, 0);
+        }
 #else
         memset(bpfbuf, 0, blen);
         len = read(rcvsock, bpfbuf, blen);
@@ -121,7 +135,7 @@ reloop:
             if ( (ippayload->icmp6_type == ICMP6_TIME_EXCEEDED) or
                  (ippayload->icmp6_type == ICMP6_DST_UNREACH) or
                  (ippayload->icmp6_type == ICMP6_ECHO_REPLY) ) {
-                ICMP *icmp = new ICMP6(ip, ippayload, elapsed, trace->config->coarse);
+                ICMP *icmp = new ICMP6(ip, ippayload, elapsed, trace->config->coarse, trace->config);
                 if (icmp->is_yarrp) {
                     if (verbosity > LOW)
                         icmp->print();
@@ -144,7 +158,18 @@ reloop:
                 }
                 delete icmp;
             }
-        } 
+        } else if (ip->ip6_nxt == IPPROTO_TCP) {
+            struct tcphdr *tcp_hdr = (struct tcphdr *) (buf + ETH_HDRLEN + sizeof(struct ip6_hdr)); 
+            TCP6 *tcp = new TCP6(ip, tcp_hdr, trace->config->instance);
+            TCP6 *tcp6 = static_cast<TCP6 *>(tcp);
+            Traceroute6 *trace6 = static_cast<Traceroute6 *>(trace);
+
+            if (tcp6->fromYarrp()) {
+                tcp->write(&(trace->config->tcp_out));
+            }
+
+            delete tcp;
+        }
 #ifndef _LINUX
 	p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
 	if (p < bpfbuf + len) goto reloop;

@@ -72,7 +72,7 @@ class ICMP4 : public ICMP {
 
 class ICMP6 : public ICMP {
     public:
-    ICMP6(struct ip6_hdr *, struct icmp6_hdr *, uint32_t elapsed, bool _coarse);
+    ICMP6(struct ip6_hdr *, struct icmp6_hdr *, uint32_t elapsed, bool _coarse, YarrpConfig *config);
     struct in6_addr *getSrc6() { return &ip_src; }
     struct in6_addr quoteDst6();
     void print();

@@ -105,6 +105,7 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
         break;
       case TR_TCP6_SYN:
       case TR_TCP6_ACK:
+      case TR_TCP6_SYN_PSHACK:
         outip->ip6_nxt = IPPROTO_TCP;
         transport_hdr_len = sizeof(struct tcphdr);
         break;
@@ -124,40 +125,82 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
         ext_hdr_len = 8;
     }
 
-    /* Populate a yarrp payload */
-    payload->ttl = ttl;
-    payload->fudge = 0;
-    payload->target = addr;
-    uint32_t diff = elapsed();
-    payload->diff = diff;
-    u_char *data = (u_char *)(frame + ETH_HDRLEN + sizeof(ip6_hdr) 
-                              + ext_hdr_len + transport_hdr_len);
-    memcpy(data, payload, sizeof(struct ypayload));
-
-    /* Populate transport header */
-    packlen = transport_hdr_len + sizeof(struct ypayload);
-    make_transport(ext_hdr_len);
-    /* Copy yarrp payload again, after changing fudge for cksum */
-    memcpy(data, payload, sizeof(struct ypayload));
-    outip->ip6_plen = htons(packlen + ext_hdr_len);
+    if (config->type != TR_TCP6_SYN_PSHACK) {
+        /* Populate a yarrp payload */
+        payload->ttl = ttl;
+        payload->fudge = 0;
+        payload->target = addr;
+        uint32_t diff = elapsed();
+        payload->diff = diff;
+        u_char *data = (u_char *)(frame + ETH_HDRLEN + sizeof(ip6_hdr) 
+                                + ext_hdr_len + transport_hdr_len);
+        memcpy(data, payload, sizeof(struct ypayload));
+        packlen = transport_hdr_len + sizeof(struct ypayload);
+    }
 
     /* xmit frame */
     if (verbosity > HIGH) {
       cout << ">> " << Tr_Type_String[config->type] << " probe: ";
       probePrint(addr, ttl);
     }
-    uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
 #ifdef _LINUX
-    if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target,
-        sizeof(struct sockaddr_ll)) < 0)
-    {
-        fatal("%s: error: %s", __func__, strerror(errno));
+    if (config->type == TR_TCP6_SYN_PSHACK) {
+        //packlen will be set in the make_transport() function
+
+        // send SYN
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
+        {
+            fatal("%s: error: %s", __func__, strerror(errno));
+        }
+        pcount++;
+
+        // send PSH+ACK
+        make_transport(ext_hdr_len, ttl, addr, true); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
+        {
+            fatal("%s: error: %s", __func__, strerror(errno));
+        }
+        pcount++;
+    } else {
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
+        {
+            fatal("%s: error: %s", __func__, strerror(errno));
+        }
+        pcount++;
     }
 #else
     /* use the BPF to send */
-    write(sndsock, frame, framelen);
+    if (config->type == TR_TCP6_SYN_PSHACK) {
+        // send SYN
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        write(sndsock, frame, framelen);
+        pcount++;
+
+        // send PSH+ACK
+        make_transport(ext_hdr_len, ttl, addr, true); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        write(sndsock, frame, framelen);
+        pcount++;
+
+    } else {
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        write(sndsock, frame, framelen);
+        pcount++;
+    }
 #endif
-    pcount++;
 }
 
 void
@@ -184,8 +227,29 @@ Traceroute6::make_hbh_eh(uint8_t nxt) {
     memset(transport, 0, 4);
 }
 
+uint64_t set_low_bits(uint32_t id, uint8_t instance, uint8_t ttl, uint16_t fudge) {
+    uint64_t low_bits = 0;
+
+    low_bits |= static_cast<uint64_t>(id) << 32;
+    low_bits |= static_cast<uint64_t>(instance) << 24;
+    low_bits |= static_cast<uint64_t>(ttl) << 16;
+    low_bits |= static_cast<uint64_t>(fudge);
+
+    return low_bits;
+}
+
 void 
-Traceroute6::make_transport(int ext_hdr_len) {
+Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool censorship_second_pkt) {
+    std::string domain;
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &addr, ip_str, sizeof(ip_str));
+    auto it = domain_map_v6.find(ip_str);
+    if (it != domain_map_v6.end()) {
+        domain = it->second;
+    } else {
+        domain = "example.com";  // fallback if no domain found
+    }
+
     void *transport = frame + ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len;
     uint16_t sum = in_cksum((unsigned short *)&(outip->ip6_dst), 16);
     if (config->type == TR_ICMP6) {
@@ -227,5 +291,50 @@ Traceroute6::make_transport(int ext_hdr_len) {
         uint16_t crafted_cksum = htons(0xbeef);
         payload->fudge = compute_data(tcp->th_sum, crafted_cksum);
         tcp->th_sum = crafted_cksum;
+    } else if (config->type == TR_TCP6_SYN_PSHACK) {
+        struct tcphdr *tcp = (struct tcphdr *)transport; 
+        tcp->th_sport = htons(sum); //change later
+        tcp->th_dport = htons(dstport);
+        tcp->th_off = 5;
+        tcp->th_win = htons(65535);
+        tcp->th_sum = 0;
+        tcp->th_x2 = 0;
+        tcp->th_urp = htons(0);
+
+        /* encode TTL within TCP ack number */
+        set_ack_msb_to_ttl_instance_id(tcp, uint8_t(ttl), config->instance);
+
+        if (!censorship_second_pkt) {
+            uint32_t diff = elapsed();
+            tcp->th_seq = htonl(diff);
+            censored_syn_seq_num = diff;
+            tcp->th_flags = TH_SYN;
+            packlen = sizeof(struct tcphdr);
+            tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
+        } else {
+            tcp->th_seq = htonl(censored_syn_seq_num + 1);
+            tcp->th_flags = TH_PUSH | TH_ACK;
+            packlen = sizeof(struct tcphdr); //change this
+            tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
+
+            /* Set HTTP GET request as TCP payload */
+            unsigned char *payload = (unsigned char *)tcp + (tcp->th_off << 2);
+            std::string payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
+            packlen = sizeof(struct tcphdr) + payload_str.length();
+            memcpy(payload, payload_str.c_str(), payload_str.length());
+        }
+
+        /* set checksum for paris goodness */
+        uint16_t crafted_cksum = htons(0xbeef);
+        uint16_t fudge = compute_data(tcp->th_sum, crafted_cksum);
+        tcp->th_sum = crafted_cksum;
+
+        /* encode first 8 bytes of yarrp payload into lower 64 bits of the source IPv6 address */
+        uint64_t high_bits = *(uint64_t*)&outip->ip6_src.s6_addr[0];
+        uint32_t id = htonl(0x79727036);
+        uint64_t low_bits = set_low_bits(id, config->instance, uint8_t(ttl), fudge);
+        low_bits = htobe64(low_bits);
+        memcpy(outip->ip6_src.s6_addr, &high_bits, 8);
+        memcpy(outip->ip6_src.s6_addr + 8, &low_bits, 8);
     }
 }

@@ -137,10 +137,6 @@ listener(void *args) {
                         tcp->write(&(trace->config->tcp_out));
                     }
 
-                    // if (trace4->getIPList()->contains(tcp->getSrc())) {
-                    //     tcp->write(&(trace->config->tcp_out));
-                    // }
-
                     delete tcp;
                 }
 

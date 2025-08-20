@@ -2,6 +2,7 @@
 #include "random_list.h"
 
 std::unordered_map<uint32_t, std::string> domain_map;
+std::unordered_map<std::string, std::string> domain_map_v6;
 
 IPList::IPList(uint8_t _maxttl, bool _rand, bool _entire) : seeded(false) {
   perm = NULL;
@@ -89,7 +90,7 @@ void IPList4::read(std::istream& inlist) {
   struct in_addr addr;
   while (getline(inlist, line)) {
     if (!line.empty() && line[line.size() - 1] == '\r')
-      line.erase( std::remove(line.begin(), line.end(), '\r'), line.end() );
+      line.erase(std::remove(line.begin(), line.end(), '\r'), line.end() );
 
     std::istringstream ss(line);
     std::string ip_str, domain, country, as_num;
@@ -113,15 +114,37 @@ void IPList4::read(std::istream& inlist) {
 
 /* Read list of input IPs */
 void IPList6::read(std::istream& inlist) {
+  // std::string line;
+  // struct in6_addr addr;
+  // while (getline(inlist, line)) {
+  //   if (!line.empty() && line[line.size() - 1] == '\r')
+  //     line.erase( std::remove(line.begin(), line.end(), '\r'), line.end() );
+  //   if (inet_pton(AF_INET6, line.c_str(), &addr) != 1)
+  //     fatal("Couldn't parse IPv6 address: %s", line.c_str());
+  //   targets.push_back(addr);
+  // }  
+
   std::string line;
   struct in6_addr addr;
   while (getline(inlist, line)) {
     if (!line.empty() && line[line.size() - 1] == '\r')
-      line.erase( std::remove(line.begin(), line.end(), '\r'), line.end() );
-    if (inet_pton(AF_INET6, line.c_str(), &addr) != 1)
-      fatal("Couldn't parse IPv6 address: %s", line.c_str());
+      line.erase(std::remove(line.begin(), line.end(), '\r'), line.end() );
+
+    std::istringstream ss(line);
+    std::string ip_str, domain, country, as_num;
+    getline(ss, ip_str, ',');
+    getline(ss, domain, ',');
+    getline(ss, country, ',');
+    getline(ss, as_num);
+
+    if (inet_pton(AF_INET6, ip_str.c_str(), &addr) != 1)
+        fatal("Couldn't parse IPv6 address: %s", ip_str.c_str());
+
     targets.push_back(addr);
-  }  
+    if (!domain.empty())
+        domain_map_v6[ip_str] = domain;
+  }
+
   debug(LOW, ">> IPv6 targets: " << targets.size());
 }
 
@@ -238,17 +261,4 @@ uint32_t IPList6::next_address_rand(struct in6_addr *in, uint8_t * ttl) {
   *in = targets[next >> ttlbits];
   *ttl = (next & ttlmask);
   return 1;
-}
-
-bool IPList4::contains(uint32_t ip) const {
-    return std::find(targets.begin(), targets.end(), ip) != targets.end();
-}
-
-bool IPList6::contains(const struct in6_addr& ip) const {
-    for (const auto& addr : targets) {
-        if (memcmp(&addr, &ip, sizeof(struct in6_addr)) == 0) {
-            return true;
-        }
-    }
-    return false;
 }

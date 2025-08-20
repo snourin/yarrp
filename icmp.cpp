@@ -162,7 +162,7 @@ ICMP4::ICMP4(struct ip *ip, struct icmp *icmp, uint32_t elapsed, bool _coarse): 
  * @param icmp Received ICMP6 hdr
  * @param elapsed Total running time
  */
-ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool _coarse) : ICMP()
+ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool _coarse, YarrpConfig *config) : ICMP()
 {
     is_yarrp = false;
     coarse = _coarse;
@@ -190,40 +190,64 @@ ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool 
     quote_p = quote->ip6_nxt;
     int offset = 0;
 
-    if (icmp->icmp6_type == ICMP6_ECHO_REPLY) {
-        qpayload = (struct ypayload *) (ptr + sizeof(struct icmp6_hdr));
-    } else {
-        // handle hop-by-hop (0), dest (60) and frag (44) extension headers
-        if ( (quote_p == 0) or (quote_p == 44) or (quote_p == 60) ) {
-            eh = (struct ip6_ext *) (ptr + sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr) );
-            ext_hdr_len = 8;
-            quote_p = eh->ip6e_nxt;
-        }
-
-        // continue processing
-        offset = sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr) + ext_hdr_len;
-        if (quote_p == IPPROTO_TCP) {
-            qpayload = (struct ypayload *) (ptr + offset + sizeof(struct tcphdr));
-        } else if (quote_p == IPPROTO_UDP) {
-            qpayload = (struct ypayload *) (ptr + offset + sizeof(struct udphdr));
-        } else if (quote_p == IPPROTO_ICMPV6) {
-            qpayload = (struct ypayload *) (ptr + offset + sizeof(struct icmp6_hdr));
+    if (config->type != TR_TCP6_SYN_PSHACK) {
+        if (icmp->icmp6_type == ICMP6_ECHO_REPLY) {
+            qpayload = (struct ypayload *) (ptr + sizeof(struct icmp6_hdr));
         } else {
-            warn("unknown quote\n");
-            return;
-        }
-    }
+            // handle hop-by-hop (0), dest (60) and frag (44) extension headers
+            if ( (quote_p == 0) or (quote_p == 44) or (quote_p == 60) ) {
+                eh = (struct ip6_ext *) (ptr + sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr) );
+                ext_hdr_len = 8;
+                quote_p = eh->ip6e_nxt;
+            }
 
-    if (ntohl(qpayload->id) == 0x79727036) 
-        is_yarrp = true;
-    ttl = qpayload->ttl;
-    instance = qpayload->instance;
-    yarrp_target = &(qpayload->target);
-    uint32_t diff = qpayload->diff;
-    if (elapsed >= diff)
-        rtt = elapsed - diff;
-    else
-        cerr << "** RTT decode, elapsed: " << elapsed << " encoded: " << diff << endl;
+            // continue processing
+            offset = sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr) + ext_hdr_len;
+            if (quote_p == IPPROTO_TCP) {
+                qpayload = (struct ypayload *) (ptr + offset + sizeof(struct tcphdr));
+            } else if (quote_p == IPPROTO_UDP) {
+                qpayload = (struct ypayload *) (ptr + offset + sizeof(struct udphdr));
+            } else if (quote_p == IPPROTO_ICMPV6) {
+                qpayload = (struct ypayload *) (ptr + offset + sizeof(struct icmp6_hdr));
+            } else {
+                warn("unknown quote\n");
+                return;
+            }
+        }
+
+        if (ntohl(qpayload->id) == 0x79727036) 
+            is_yarrp = true;
+        ttl = qpayload->ttl;
+        instance = qpayload->instance;
+        yarrp_target = &(qpayload->target);
+        uint32_t diff = qpayload->diff;
+        if (elapsed >= diff)
+            rtt = elapsed - diff;
+        else
+            cerr << "** RTT decode, elapsed: " << elapsed << " encoded: " << diff << endl;
+    } else {
+        /* Extract the id from the first 16 bits of the last 64 bits of the dst IPv6 address */
+        uint64_t low_bits = *(uint64_t*)&ip->ip6_dst.s6_addr[8];
+        low_bits = be64toh(low_bits);
+        uint16_t id = uint16_t(low_bits >> 48);
+
+        if (ntohl(id) == 0x79727036)
+            is_yarrp = true;
+
+        /* Extract the instance id from the next 8 bits of the last 64 bits of the dst IPv6 address*/
+        instance = uint8_t((low_bits >> 40) & 0xFF);
+
+        /* Extract the ttl from the next 8 bits of the last 64 bits of the dst IPv6 address*/
+        ttl = uint8_t((low_bits >> 32) & 0xFF);
+
+        /* Extract the elapsed time from the quoted TCP sequence number */
+        struct tcphdr *tcp = (struct tcphdr*) ((uint8_t *)ip + sizeof(struct ip6_hdr));
+        uint32_t diff = ntohl(tcp->th_seq);
+        if (elapsed >= diff)
+            rtt = elapsed - diff;
+        else
+            cerr << "** RTT decode, elapsed: " << elapsed << " encoded: " << diff << endl;
+    }
 
     /* ICMP6 echo replies only quote the yarrp payload, not the full packet! */
     if (((type == ICMP6_TIME_EXCEEDED) and (code == ICMP6_TIME_EXCEED_TRANSIT)) or

@@ -75,7 +75,6 @@ class IPList4 : public IPList {
   uint32_t next_address(struct in6_addr *in, uint8_t * ttl) { return 0; };
   void read(std::istream& in);
   void seed();
-  bool contains(uint32_t ip) const;
 
   private:
   std::vector<uint32_t> targets;
@@ -92,7 +91,6 @@ class IPList6 : public IPList {
   uint32_t next_address(struct in_addr *in, uint8_t * ttl) { return 0; };
   void read(std::istream& in);
   void seed();
-  bool contains(const struct in6_addr& ip) const;
 
   private:
   std::vector<struct in6_addr> targets;

@@ -65,6 +65,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <endian.h> 
 
 #ifdef HAVE_PTHREAD
  #include <pthread.h>
@@ -162,6 +163,7 @@ void internet6(YarrpConfig *config, Traceroute *trace, Patricia *tree, Stats *st
 
 using namespace std;
 
-extern std::unordered_map<uint32_t, std::string> domain_map; // mapping from IP address to domain
+extern std::unordered_map<uint32_t, std::string> domain_map; // mapping from IPv4 address to domain
+extern std::unordered_map<std::string, std::string> domain_map_v6; // mapping from IPv6 address to domain
 
 #endif  /* _YRP_H_ */

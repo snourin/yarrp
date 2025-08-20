@@ -147,26 +147,15 @@ void TCP::setTriggeredTTL() {
 }
 
 bool TCP::fromYarrp(bool sport_checksum_valid) {
-    // int minimum_instance_accepted = given_instance - 3;
-    // if (minimum_instance_accepted > 0) {
-    //     if ((sport_checksum_valid) && ((instance >= given_instance - 3) && (instance <= given_instance))) {
-    //         return true;
-    //     }
-    // } else {
-    //     if ((sport_checksum_valid) && ((instance > 0) && (instance <= given_instance))) {
-    //         return true;
-    //     }
-    // }
-
-    // return false;
-
     return sport_checksum_valid;
 }
 
 bool TCP4::fromYarrp() {
     bool sport_checksum_valid = false;
     uint16_t sport_check = in_cksum((unsigned short *)&ip_src, 4);
-    if (dport == sport_check) {
+    uint16_t dport_last_seven_bits = dport & 0x7F;
+    uint16_t sport_check_first_seven_bits = (sport_check & 0xFE00) >> 9;
+    if (dport_last_seven_bits == sport_check_first_seven_bits) {
         sport_checksum_valid = true;
     }
 
@@ -174,6 +163,13 @@ bool TCP4::fromYarrp() {
 }
 
 bool TCP6::fromYarrp() {
-    //TO-DO
-    return TCP::fromYarrp(false);
+    bool sport_checksum_valid = false;
+    uint16_t sport_check = in_cksum((unsigned short *)&ip_src, 4);
+    uint16_t dport_last_seven_bits = dport & 0x7F;
+    uint16_t sport_check_first_seven_bits = (sport_check & 0xFE00) >> 9;
+    if (dport_last_seven_bits == sport_check_first_seven_bits) {
+        sport_checksum_valid = true;
+    }
+
+    return TCP::fromYarrp(sport_checksum_valid);
 }
