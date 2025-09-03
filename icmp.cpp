@@ -22,7 +22,7 @@ ICMP::~ICMP() {
     }
 }
 
-ICMP4::ICMP4(struct ip *ip, struct icmp *icmp, uint32_t elapsed, bool _coarse): ICMP()
+ICMP4::ICMP4(struct ip *ip, struct icmp *icmp, uint32_t elapsed, bool _coarse, YarrpConfig *config): ICMP()
 {
     coarse = _coarse;
     memset(&ip_src, 0, sizeof(struct in_addr));
@@ -98,11 +98,21 @@ ICMP4::ICMP4(struct ip *ip, struct icmp *icmp, uint32_t elapsed, bool _coarse): 
         }
 
         /* According to Malone PAM 2007, 2% of replies have bad IP dst. */
-        uint16_t sum = in_cksum((unsigned short *)&(quote->ip_dst), 4);
-        if (sport != sum) {
-            cerr << "** IP dst in ICMP reply quote invalid!" << endl;
-            sport = dport = 0;
+        if (config->type != TR_TCP_SYN_PSHACK) {
+            uint16_t sum = in_cksum((unsigned short *)&(quote->ip_dst), 4);
+            if (sport != sum) {
+                cerr << "** IP dst in ICMP reply quote invalid!" << endl;
+                sport = dport = 0;
+            }
+        } else {
+            uint8_t msb_sum = ((in_cksum((unsigned short *)&(quote->ip_dst), 4) >> 9) & 0x7F);
+            uint8_t lsb_sport = sport & 0x7F;
+            if (lsb_sport != msb_sum) {
+                cerr << "** IP dst in ICMP reply quote invalid!" << endl;
+                sport = dport = 0;
+            }
         }
+        
 
         /* Finally, does this ICMP packet have an extension (RFC4884)? */
         length = (ntohl(icmp->icmp_void) & 0x00FF0000) >> 16;

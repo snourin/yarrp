@@ -71,7 +71,7 @@ listener(void *args) {
                 if ((ip->ip_v == IPVERSION) and (ip->ip_p == IPPROTO_ICMP)) {
                     ippayload = (struct icmp *)&buf[ip->ip_hl << 2];
                     elapsed = trace->elapsed();
-                    ICMP *icmp = new ICMP4(ip, ippayload, elapsed, trace->config->coarse);
+                    ICMP *icmp = new ICMP4(ip, ippayload, elapsed, trace->config->coarse, trace->config);
                     if (verbosity > LOW) 
                         icmp->print();
                     /* ICMP message not from this yarrp instance, skip. */

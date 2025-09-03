@@ -59,7 +59,7 @@ class ICMP {
 
 class ICMP4 : public ICMP {
     public:
-    ICMP4(struct ip *, struct icmp *, uint32_t elapsed, bool _coarse);
+    ICMP4(struct ip *, struct icmp *, uint32_t elapsed, bool _coarse, YarrpConfig *config);
     uint32_t quoteDst();
     uint32_t getSrc() { return ip_src.s_addr; }
     void print();
