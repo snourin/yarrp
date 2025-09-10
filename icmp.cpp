@@ -99,7 +99,7 @@ ICMP4::ICMP4(struct ip *ip, struct icmp *icmp, uint32_t elapsed, bool _coarse, Y
 
         /* According to Malone PAM 2007, 2% of replies have bad IP dst. */
         if (config->type != TR_TCP_SYN_PSHACK) {
-            uint16_t sum = in_cksum((unsigned short *)&(quoe->ip_dst), 4);
+            uint16_t sum = in_cksum((unsigned short *)&(quote->ip_dst), 4);
             if (sport != sum) {
                 cerr << "** IP dst in ICMP reply quote invalid!" << endl;
                 sport = dport = 0;
