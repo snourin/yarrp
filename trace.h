@@ -33,6 +33,7 @@ class Traceroute {
     void lock();
     void unlock();
     void set_ack_msb_to_ttl_instance_id(struct tcphdr *tcp_hdr, uint8_t ttl, uint8_t instance_id);
+    void clearHisto();
     virtual void probe(uint32_t, int) {};
     virtual void probe(struct sockaddr_in *, int) {};
     virtual void probePrint(struct in_addr *, int) {};
@@ -58,7 +59,7 @@ class Traceroute {
 
 class Traceroute4 : public Traceroute {
     public:
-    Traceroute4(YarrpConfig *config, Stats *stats, IPList *iplist);
+    Traceroute4(YarrpConfig *config, Stats *stats);
     virtual ~Traceroute4();
     struct sockaddr_in *getSource() { return &source; }
     void probe(const char *, int);

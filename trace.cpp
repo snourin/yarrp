@@ -27,6 +27,8 @@ Traceroute::~Traceroute() {
     pthread_cancel(recv_thread);
     if (config->out)
         fclose(config->out);
+
+    clearHisto();
 }
 
 void
@@ -40,6 +42,17 @@ Traceroute::initHisto(uint8_t ttl) {
             t = new TTLHisto4();
         ttlhisto.push_back(t);
     }
+}
+
+void
+Traceroute::clearHisto() {
+    vector<TTLHisto* >::iterator it;
+    for(it = ttlhisto.begin(); it != ttlhisto.end(); it++) {
+        if(*it != NULL) {
+            delete *it;
+        }
+    }
+    ttlhisto.clear();
 }
 
 void

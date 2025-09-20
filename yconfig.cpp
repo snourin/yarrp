@@ -288,6 +288,7 @@ YarrpConfig::dump(FILE *fd) {
 
 void
 YarrpConfig::switch_target(string new_target){
+    inlist = strdup(new_target.c_str());
     params["Targets"] = val_t(new_target, true);
 }
 

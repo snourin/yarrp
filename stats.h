@@ -7,6 +7,20 @@ class Stats {
               fills(0) {
       gettimeofday(&start, NULL);
     };
+
+    void reset() {
+        count = 0;
+        to_probe = 0;
+        nbr_skipped = 0;
+        bgp_skipped = 0;
+        ttl_outside = 0;
+        bgp_outside = 0;
+        adr_outside = 0;
+        baddst = 0;
+        fills = 0;
+        gettimeofday(&start, NULL);
+    }
+
     void terse() {
       terse(stderr);
     }

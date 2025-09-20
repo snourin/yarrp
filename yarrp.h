@@ -66,6 +66,9 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <endian.h> 
+#include <chrono> // for debug output
+#include <iomanip>
+#include <ctime>
 
 #ifdef HAVE_PTHREAD
  #include <pthread.h>
@@ -97,7 +100,13 @@ extern int verbosity;
 #define func() do {fprintf(stdout,"\t>> %s:%s():%d\n",__FILE__,__FUNCTION__,__LINE__); } while (0)
 #define warn(x...) do {fprintf(stderr,"*** Warn: "); fprintf(stderr,x); fprintf(stderr,"\n");} while (0)
 #define fatal(x...) do {fprintf(stderr,"*** Fatal: "); fprintf(stderr,x); fprintf(stderr,"\n"); exit(-1);} while (0)
-#define debug(level,x...) do {if (verbosity >= level) {std::cout << x << std::endl;} } while (0)
+#define debug(level,x...) \
+  do {if (verbosity >= level) { \
+    auto now = std::chrono::system_clock::now(); \
+    auto in_time_t = std::chrono::system_clock::to_time_t(now); \
+    std::cout << std::put_time(std::localtime(&in_time_t), "%F %T") \
+              << " " << x << std::endl; \
+  }} while (0)
 #define PKTSIZE 1500
 #define MAXNULLREADS 10
 #define SHUTDOWN_WAIT 60

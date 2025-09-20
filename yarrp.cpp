@@ -56,6 +56,9 @@ loop(YarrpConfig * config, TYPE * iplist, Traceroute * trace,
     }
 
     stats->to_probe = iplist->count();
+
+    debug(LOW, "[loop] Entering the probing loop");
+
     while (true) {
         /* Grab next target/ttl pair from permutation */
         if (config->ipv6) {
@@ -230,18 +233,6 @@ main(int argc, char **argv) {
             }
         }
     }
-    /* Init target list (individual IPs, *NOT* subnets) from input file */
-    IPList *iplist = NULL;
-    if (config.inlist or config.entire) {
-        if (config.ipv6)
-            iplist = new IPList6(config.maxttl, config.random_scan, config.entire);
-        else
-            iplist = new IPList4(config.maxttl, config.random_scan, config.entire);
-        /* randomize permutation key */
-        iplist->setkey(config.seed);
-        if (config.inlist)
-            iplist->read(config.inlist);
-    }
     /* Initialize subnet list and add subnets from args */
     SubnetList *subnetlist = NULL;
     if (not config.entire and not config.inlist and config.probe) {
@@ -288,7 +279,7 @@ main(int argc, char **argv) {
     if (config.ipv6)
         trace = new Traceroute6(&config, stats);
     else
-        trace = new Traceroute4(&config, stats, iplist);
+        trace = new Traceroute4(&config, stats);
 
     trace->addTree(tree);
 
@@ -308,39 +299,68 @@ main(int argc, char **argv) {
 
     /* Main probing loop */
     if (config.probe) {
-        debug(LOW, ">> Probing begins.");
-        if (config.entire or config.inlist) {
-            /* Start scanning with current IP list */
-            pid_t pid = fork();
-            if (pid == 0) { // Child process
-                // Run tcpdump
-                std::string pcap_filename = std::string(config.output) + ".pcap";
-                int pcap_result = execlp("tcpdump", "tcpdump", "-i", "any", "-w", pcap_filename.c_str(), NULL);
-                if (pcap_result == -1) {
-                    std::cout << "Failed to run tcpdump" << std::endl;
-                }
-
-            } else if (pid > 0) { // Parent process
-                loop(&config, iplist, trace, tree, stats);
-                sleep(5);
-                kill(pid, SIGINT); // Stop tcpdump
-                waitpid(pid, nullptr, 0);
-                std::cout << "Successfully stopped tcpdump" << std::endl;
-            } else {
-                std::cout << "Failed to fork for tcpdump" << std::endl;
-            }
-        }
 
         std:ifstream named_pipe(config.named_pipe);
-        static bool output_name_allocated = false;
 
         if (! named_pipe.is_open()) {
-            std::cout << "Failed to open named pipe: " << config.named_pipe << std::endl;
+            debug(LOW, "Failed to open named pipe: " << config.named_pipe);
             return 1;
         }
 
-        while (true) {
-            /* Finished, cleanup */
+        IPList *iplist = NULL;
+        do {
+            // Print our current configuration
+            config.dump();
+
+            debug(LOW, "==== Constructing the IP list ====");
+            // Delete the previous iplist
+            if (iplist != nullptr) {
+                delete iplist;
+                iplist = nullptr;
+            }
+
+            /* Init target list (individual IPs, *NOT* subnets) from input file */
+            if (config.inlist or config.entire) {
+                if (config.ipv6)
+                    iplist = new IPList6(config.maxttl, config.random_scan, config.entire);
+                else
+                    iplist = new IPList4(config.maxttl, config.random_scan, config.entire);
+                /* randomize permutation key */
+                iplist->setkey(config.seed);
+                if (config.inlist)
+                    iplist->read(config.inlist);
+            }
+
+            debug(LOW, "==== Done constructing the IP list ====");
+
+            debug(LOW, "==== Probing chunk beginning... ====");
+
+            if (config.entire or config.inlist) {
+                /* Start scanning with current IP list */
+                pid_t pid = fork();
+                if (pid == 0) { // Child process
+                                // Run tcpdump
+                    std::string pcap_filename = std::string(config.output) + ".pcap";
+                    int pcap_result = execlp("tcpdump", "tcpdump", "-i", "any", "-w", pcap_filename.c_str(), NULL);
+                    if (pcap_result == -1) {
+                        std::cout << "Failed to run tcpdump" << std::endl;
+                    }
+
+                } else if (pid > 0) { // Parent process
+                    loop(&config, iplist, trace, tree, stats);
+                    debug(LOW, "Probing loop complete. Napping before terminating tcpdump");
+                    sleep(5);
+                    kill(pid, SIGINT); // Stop tcpdump
+                    waitpid(pid, nullptr, 0);
+                    debug(LOW, "Successfully stopped tcpdump");
+                } else {
+                    debug(LOW, "Failed to fork for tcpdump");
+                }
+            }
+
+            debug(LOW, "==== Probing chunk complete ====");
+
+            /* Dump stats from probe */
             if (config.receive) {
                 if (config.output and not config.testing) {
                     stats->dump(trace->config->out);
@@ -350,8 +370,7 @@ main(int argc, char **argv) {
                     stats->dump(stdout);
             }
 
-            std::cout << "IN LOOP" << std::endl; 
-
+            /* Read from the named pipe to get the new set of targets */
             std::cout << std::unitbuf;
 
             std::string line; 
@@ -359,31 +378,39 @@ main(int argc, char **argv) {
 
             // Read first line (input)
             if (std::getline(named_pipe, line)) {
-                if (line == "exit"){
-                    startTimeout = true;
-                    break; //Exit out of inner loop
-                }
-
                 lines.push_back(line);
+            } else {
+                debug(LOW, "[error] Missing expected 'input' line from named pipe");
+                break;
             }
 
-            if (startTimeout){ // Exit out of outer loop
-                break;
+            if (line == "exit"){
+                debug(LOW, "Got 'exit' off of the named pipe; exiting");
+                break; // Exit out of this do/while loop
             }
 
             // Read second line (output)
             if (std::getline(named_pipe, line)) {
                 lines.push_back(line);
-            } 
+            } else {
+                debug(LOW, "[error] Missing expected 'output' line from named pipe");
+                break;
+            }
 
             // Read third line (probe)
             if (std::getline(named_pipe, line)) {
                 lines.push_back(line);
-            } 
+            } else {
+                debug(LOW, "[error] Missing expected 'probe' line from named pipe");
+                break;
+            }
 
             // Read fourth line (instance)
             if (std::getline(named_pipe, line)) {
                 lines.push_back(line);
+            } else {
+                debug(LOW, "[error] Missing expected 'instance' line from named pipe");
+                break;
             } 
 
             const std::string& input = lines[0];
@@ -391,63 +418,19 @@ main(int argc, char **argv) {
             const std::string& probe = lines[2];
             uint8_t instance = uint8_t(std::stoi(lines[3]));
 
-            // Open the input file
-            std::ifstream ip_file(input);
-            if (!ip_file.is_open()) {
-                std::cout << "Failed to open file: " << input << std::endl;
-                continue; // Try again if file can't be opened
-            }
-
             config.switch_probe(probe.c_str());
             config.switch_target(input);
             config.switch_output(output);
             config.switch_instance(instance);
 
-            // We allocated memory for the new output name
-            output_name_allocated = true;
+            trace->clearHisto();
+            trace->initHisto(config.ttl_neighborhood);
+            stats->reset();
 
-            // Open the output file 
-            config.dump();
-
-            // Delete the previous iplist
-            if (iplist != nullptr) {
-                delete iplist;
-                iplist = nullptr;
-            }
-
-            // Create new IP list and load new IPs from file 
-            if (config.ipv6)
-                iplist = new IPList6(config.maxttl, config.random_scan, config.entire);
-            else
-                iplist = new IPList4(config.maxttl, config.random_scan, config.entire);
-
-            // Read new IPs from the file
-            iplist->read(ip_file);
-
-            std::cout << "New IPs loaded. Resuming scanning..." << std::endl;
+        } while(true); // main probing loop
+    } // if config.probe
 
 
-            // Continue probing the new IPs
-            pid_t pid = fork();
-            if (pid == 0) { // Child process
-                // Run tcpdump
-                std::string pcap_filename = std::string(output) + ".pcap";
-                int pcap_result = execlp("tcpdump", "tcpdump", "-i", "any", "-w", pcap_filename.c_str(), NULL);
-                if (pcap_result == -1) {
-                    std::cout << "Failed to run tcpdump" << std::endl;
-                }
-
-            } else if (pid > 0) { // Parent process
-                loop(&config, iplist, trace, tree, stats); 
-                sleep(5);
-                kill(pid, SIGINT); // Stop tcpdump
-                waitpid(pid, nullptr, 0);
-                std::cout << "Successfully stopped tcpdump" << std::endl;
-            } else {
-                std::cout << "Failed to fork for tcpdump" << std::endl;
-            }
-        }
-    }
 
     // while (true) {
     //     if (config.probe) {
@@ -489,8 +472,8 @@ main(int argc, char **argv) {
     delete trace;
     if (tree)
         delete tree;
-    if (iplist)
-        delete iplist;
+    // if (iplist)
+    //     delete iplist;
     if (subnetlist)
         delete subnetlist;
 }
