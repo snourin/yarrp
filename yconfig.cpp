@@ -287,8 +287,9 @@ YarrpConfig::dump(FILE *fd) {
 }
 
 void
-YarrpConfig::switch_target(string new_target){
-    inlist = strdup(new_target.c_str());
+YarrpConfig::switch_target(const char * new_target){
+    inlist_storage = new_target;
+    inlist = &inlist_storage[0]; 
     params["Targets"] = val_t(new_target, true);
 }
 

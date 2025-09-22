@@ -5,7 +5,7 @@ class YarrpConfig {
   public:
   YarrpConfig() : rate(10), random_scan(true), ttl_neighborhood(0),
     testing(false), entire(false), output(NULL), tcp_output(NULL),
-    bgpfile(NULL), inlist(NULL), blocklist(NULL),
+    bgpfile(NULL), inlist(NULL), inlist_storage(NULL), blocklist(NULL),
     count(0), minttl(1), maxttl(16), seed(0),
     dstport(80), named_pipe(NULL),
     ipv6(false), int_name(NULL), dstmac(NULL), srcmac(NULL), 
@@ -17,7 +17,7 @@ class YarrpConfig {
   void set(std::string, std::string, bool);
   void dump() { if (output) { dump(out); dump(tcp_out);} }
   void switch_output(std::string);
-  void switch_target(std::string);
+  void switch_target(const char *);
   void switch_probe(const char *);
   void switch_instance(uint8_t);
   unsigned int rate;
@@ -29,6 +29,7 @@ class YarrpConfig {
   char *tcp_output;
   char *bgpfile;
   char *inlist;
+  std::string inlist_storage;
   char *blocklist;
   char *named_pipe;
   uint32_t count;

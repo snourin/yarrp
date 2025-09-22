@@ -419,7 +419,7 @@ main(int argc, char **argv) {
             uint8_t instance = uint8_t(std::stoi(lines[3]));
 
             config.switch_probe(probe.c_str());
-            config.switch_target(input);
+            config.switch_target(input.c_str());
             config.switch_output(output);
             config.switch_instance(instance);
 
