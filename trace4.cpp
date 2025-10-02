@@ -281,7 +281,7 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
     if (TR_TCP_SYN == config->type) {
         tcp->th_flags |= TH_SYN;
     } else {
-        tcp->th_flags |= TH_ACK;
+        tcp->th_flags = TH_ACK;
         tcp->th_ack = htonl(target->sin_addr.s_addr);
     }
     /*
