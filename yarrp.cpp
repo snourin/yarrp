@@ -134,6 +134,10 @@ loop(YarrpConfig * config, TYPE * iplist, Traceroute * trace,
                 trace->probePrint(&target, ttl);
         }
         stats->count++;
+        //increment counter again because we send two packets for this probe type
+        if (config->type == TR_TCP_SYN_PSHACK) { 
+            stats->count++;
+        }
         /* Progress printer */
         if ((verbosity >= LOW) and
             (iplist->count() > 10000) and
@@ -368,6 +372,13 @@ main(int argc, char **argv) {
                 }
                 else
                     stats->dump(stdout);
+            }
+
+            /* If just ran uncensored probes, wait 2 minutes for TCB of routers/middleboxes to 
+               be cleared before running censored probes */
+            char* uncensored_output = "uncensored";
+            if (strstr(_config.output, uncensored_output) != NULL) { 
+                sleep(120);
             }
 
             /* Read from the named pipe to get the new set of targets */
