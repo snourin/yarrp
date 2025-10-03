@@ -376,8 +376,8 @@ main(int argc, char **argv) {
 
             /* If just ran uncensored probes, wait 2 minutes for TCB of routers/middleboxes to 
                be cleared before running censored probes */
-            char* uncensored_output = "uncensored";
-            if (strstr(_config.output, uncensored_output) != NULL) { 
+            const char* uncensored_output = "uncensored";
+            if (strstr(config.output, uncensored_output) != NULL) { 
                 sleep(120);
             }
 
