@@ -377,7 +377,16 @@ Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool
         udp->uh_sum = crafted_cksum;
     } else if (config->type == TR_TCP6_SYN || config->type == TR_TCP6_ACK) {
         struct tcphdr *tcp = (struct tcphdr *)transport;
-        tcp->th_sport = htons(sum);
+        
+        const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+        const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+        uint16_t pkt_sport = 0;
+
+        pkt_sport |= (domain_index & 0x1FF) << 7;
+        pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip6_dst), 16) >> 9) & 0x7F);
+
+        tcp->th_sport = htons(pkt_sport);
         tcp->th_dport = htons(dstport);
         tcp->th_seq = htonl(1);
         tcp->th_off = 5;
@@ -389,7 +398,7 @@ Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool
         if (config->type == TR_TCP6_SYN) 
            tcp->th_flags |= TH_SYN; 
         else
-           tcp->th_flags |= TH_ACK; 
+           tcp->th_flags = TH_ACK; 
         tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
         /* set checksum for paris goodness */
         uint16_t crafted_cksum = htons(0xbeef);
@@ -451,7 +460,7 @@ Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool
 
         /* encode first 8 bytes of yarrp payload into lower 64 bits of the source IPv6 address */
         uint64_t high_bits = *(uint64_t*)&outip->ip6_src.s6_addr[0];
-        uint32_t id = htonl(0x79727036);
+        uint32_t id = 0x79727036;
         uint64_t low_bits = set_low_bits(id, config->instance, uint8_t(ttl), fudge);
         low_bits = htobe64(low_bits);
         memcpy(outip->ip6_src.s6_addr, &high_bits, 8);

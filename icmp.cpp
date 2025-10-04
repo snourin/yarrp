@@ -236,19 +236,23 @@ ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool 
         else
             cerr << "** RTT decode, elapsed: " << elapsed << " encoded: " << diff << endl;
     } else {
+        cout << "HEREEEEEE" << endl;
         /* Extract the id from the first 16 bits of the last 64 bits of the dst IPv6 address */
         uint64_t low_bits = *(uint64_t*)&ip->ip6_dst.s6_addr[8];
         low_bits = be64toh(low_bits);
-        uint16_t id = uint16_t(low_bits >> 48);
+        uint32_t id = uint32_t(low_bits >> 32);
 
-        if (ntohl(id) == 0x79727036)
+        cout << id << endl;
+        cout << ntohl(id) << endl;
+
+        if (id == 0x79727036)
             is_yarrp = true;
 
         /* Extract the instance id from the next 8 bits of the last 64 bits of the dst IPv6 address*/
-        instance = uint8_t((low_bits >> 40) & 0xFF);
+        instance = uint8_t((low_bits >> 24) & 0xFF);
 
         /* Extract the ttl from the next 8 bits of the last 64 bits of the dst IPv6 address*/
-        ttl = uint8_t((low_bits >> 32) & 0xFF);
+        ttl = uint8_t((low_bits >> 16) & 0xFF);
 
         /* Extract the elapsed time from the quoted TCP sequence number */
         struct tcphdr *tcp = (struct tcphdr*) ((uint8_t *)ip + sizeof(struct ip6_hdr));
