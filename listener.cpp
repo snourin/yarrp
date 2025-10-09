@@ -80,16 +80,18 @@ listener(void *args) {
                             cerr << ">> Listener: packet instance mismatch." << endl;
                         delete icmp;
                         continue;
-                if (icmp->getSport() == 0)
-                    trace->stats->baddst+=1;
-                /* Fill mode logic. */
-                if (trace->config->fillmode) {
-                    if ( (icmp->getTTL() >= trace->config->maxttl) and
-                         (icmp->getTTL() <= trace->config->fillmode) ) {
-                        uint32_t dst_ip = icmp->quoteDst();
-                        if (dst_ip != 0) {
-                            trace->stats->fills+=1;
-                            trace->probe(icmp->quoteDst(), icmp->getTTL() + 1); 
+                    }
+                    if (icmp->getSport() == 0)
+                        trace->stats->baddst+=1;
+                    /* Fill mode logic. */
+                    if (trace->config->fillmode) {
+                        if ( (icmp->getTTL() >= trace->config->maxttl) and
+                            (icmp->getTTL() <= trace->config->fillmode) ) {
+                            uint32_t dst_ip = icmp->quoteDst();
+                            if (dst_ip != 0) {
+                                trace->stats->fills+=1;
+                                trace->probe(icmp->quoteDst(), icmp->getTTL() + 1); 
+                            }
                         }
                     }
                     icmp->write(&(trace->config->out), trace->stats->count);
