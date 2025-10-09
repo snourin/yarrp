@@ -378,7 +378,7 @@ main(int argc, char **argv) {
                be cleared before running censored probes */
             const char* uncensored_output = "uncensored";
             if (strstr(config.output, uncensored_output) != NULL) { 
-                sleep(120);
+                sleep(2);
             }
 
             /* Read from the named pipe to get the new set of targets */

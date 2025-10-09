@@ -98,20 +98,27 @@ ICMP4::ICMP4(struct ip *ip, struct icmp *icmp, uint32_t elapsed, bool _coarse, Y
         }
 
         /* According to Malone PAM 2007, 2% of replies have bad IP dst. */
-        if (config->type != TR_TCP_SYN_PSHACK) {
-            uint16_t sum = in_cksum((unsigned short *)&(quote->ip_dst), 4);
-            if (sport != sum) {
-                cerr << "** IP dst in ICMP reply quote invalid!" << endl;
-                sport = dport = 0;
-            }
-        } else {
-            uint8_t msb_sum = ((in_cksum((unsigned short *)&(quote->ip_dst), 4) >> 9) & 0x7F);
-            uint8_t lsb_sport = sport & 0x7F;
-            if (lsb_sport != msb_sum) {
-                cerr << "** IP dst in ICMP reply quote invalid!" << endl;
-                sport = dport = 0;
-            }
+        uint8_t msb_sum = ((in_cksum((unsigned short *)&(quote->ip_dst), 4) >> 9) & 0x7F);
+        uint8_t lsb_sport = sport & 0x7F;
+        if (lsb_sport != msb_sum) {
+            cerr << "** IP dst in ICMP reply quote invalid!" << endl;
+            sport = dport = 0;
         }
+        
+        // if (config->type != TR_TCP_SYN_PSHACK) {
+        //     uint16_t sum = in_cksum((unsigned short *)&(quote->ip_dst), 4);
+        //     if (sport != sum) {
+        //         cerr << "** IP dst in ICMP reply quote invalid!" << endl;
+        //         sport = dport = 0;
+        //     }
+        // } else {
+        //     uint8_t msb_sum = ((in_cksum((unsigned short *)&(quote->ip_dst), 4) >> 9) & 0x7F);
+        //     uint8_t lsb_sport = sport & 0x7F;
+        //     if (lsb_sport != msb_sum) {
+        //         cerr << "** IP dst in ICMP reply quote invalid!" << endl;
+        //         sport = dport = 0;
+        //     }
+        // }
         
 
         /* Finally, does this ICMP packet have an extension (RFC4884)? */

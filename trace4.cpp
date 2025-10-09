@@ -338,7 +338,7 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
 
     // SYN
     unsigned char *ptr_syn = (unsigned char *)outip;
-    struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl << 2));
+    struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl * 4));
 
     packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payloadlen;
     outip->ip_p = IPPROTO_TCP;
@@ -393,13 +393,24 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
-        cout << ttl << " t=" << syn_diff << endl;
+        cout << ttl << " t=" << syn_diff << " sport: ";
+        cout << ntohs(tcp_syn->th_sport) << " dport: " << ntohs(tcp_syn->th_dport);
+        cout << " flags:" << tcp_syn->th_flags;
+        cout << " packlen:" << len_syn << endl;
+
+        //Print packet
+        unsigned char *pkt_bytes = (unsigned char *)outip;
+        cout << " Packet bytes: ";
+        for (size_t i = 0; i < packlen; i++) {
+            printf("%02x ", pkt_bytes[i]);
+        }
+        cout << endl;
     }
 
     // PSH+ACK
     unsigned char *ptr = (unsigned char *)outip;
-    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl << 2));
-    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off << 2);
+    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl * 4));
+    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off * 4);
 
     std::string payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
 
@@ -446,11 +457,22 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
      * chksum must be over htons() versions
      */
     u_short len = sizeof(struct tcphdr) + payload_str.length();
-    tcp_pshack->th_sum = p_cksum(outip, (u_short *) tcp_pshack, payload_str.length());
+    tcp_pshack->th_sum = p_cksum(outip, (u_short *) tcp_pshack, len);
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
-        cout << ttl << " t=" << syn_diff << endl;
+        cout << ttl << " t=" << syn_diff << " sport: ";
+        cout << ntohs(tcp_pshack->th_sport) << " dport: " << ntohs(tcp_pshack->th_dport);
+        cout << " flags:" << tcp_pshack->th_flags;
+        cout << " packlen:" << len << endl;
+
+        //Print packet
+        unsigned char *pkt_bytes = (unsigned char *)outip;
+        cout << " Packet bytes: ";
+        for (size_t i = 0; i < packlen; i++) {
+            printf("%02x ", pkt_bytes[i]);
+        }
+        cout << endl;
     }
 }
 
