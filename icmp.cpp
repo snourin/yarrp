@@ -243,7 +243,18 @@ ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool 
         else
             cerr << "** RTT decode, elapsed: " << elapsed << " encoded: " << diff << endl;
     } else {
-        cout << "HEREEEEEE" << endl;
+
+        //Following code needed for source port validation
+        // handle hop-by-hop (0), dest (60) and frag (44) extension headers
+        if ( (quote_p == 0) or (quote_p == 44) or (quote_p == 60) ) {
+            eh = (struct ip6_ext *) (ptr + sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr) );
+            ext_hdr_len = 8;
+            quote_p = eh->ip6e_nxt;
+        }
+
+        // continue processing
+        offset = sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr) + ext_hdr_len;
+
         /* Extract the id from the first 16 bits of the last 64 bits of the dst IPv6 address */
         uint64_t low_bits = *(uint64_t*)&ip->ip6_dst.s6_addr[8];
         low_bits = be64toh(low_bits);
@@ -287,10 +298,26 @@ ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool 
             sport = ntohs(icmp6->icmp6_id);
             dport = ntohs(icmp6->icmp6_seq);
         }
-        uint16_t sum = in_cksum((unsigned short *)&(quote->ip6_dst), 16);
-        if (sport != sum) {
-            cerr << "** IP6 dst in ICMP6 reply quote invalid!" << endl;
-            sport = dport = 0;
+
+        if ((config->type == TR_TCP6_SYN_PSHACK) || (config->type == TR_TCP6_ACK)) {
+            uint8_t msb_sum = ((in_cksum((unsigned short *)&(quote->ip6_dst), 16) >> 9) & 0x7F);
+            uint8_t lsb_sport = sport & 0x7F;
+            if (lsb_sport != msb_sum) {
+                cerr << sport << endl;
+                cerr << lsb_sport << endl;
+                cerr << msb_sum << endl;
+                char str[INET6_ADDRSTRLEN];
+                inet_ntop(AF_INET6, &(quote->ip6_dst), str, sizeof(str));
+                cerr << str << endl;
+                cerr << "** IP6 dst in ICMP6 reply quote invalid!" << endl;
+                sport = dport = 0;
+            }
+        } else {
+            uint16_t sum = in_cksum((unsigned short *)&(quote->ip6_dst), 16);
+            if (sport != sum) {
+                cerr << "** IP6 dst in ICMP6 reply quote invalid!" << endl;
+                sport = dport = 0;
+            }
         }
     }
 }
