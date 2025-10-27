@@ -353,7 +353,7 @@ main(int argc, char **argv) {
                 } else if (pid > 0) { // Parent process
                     loop(&config, iplist, trace, tree, stats);
                     debug(LOW, "Probing loop complete. Napping before terminating tcpdump");
-                    sleep(120);
+                    sleep(5);
                     kill(pid, SIGINT); // Stop tcpdump
                     waitpid(pid, nullptr, 0);
                     debug(LOW, "Successfully stopped tcpdump");
@@ -378,7 +378,7 @@ main(int argc, char **argv) {
                be cleared before running censored probes */
             const char* uncensored_output = "uncensored";
             if (strstr(config.output, uncensored_output) != NULL) { 
-                sleep(2);
+                sleep(120);
             }
 
             /* Read from the named pipe to get the new set of targets */
