@@ -185,9 +185,17 @@ Traceroute4::probe(struct sockaddr_in *target, int ttl) {
     } else if ( (TR_TCP_SYN == config->type) || (TR_TCP_ACK == config->type) ) {
         probeTCP(target, ttl);
     } else if ((TR_TCP_SYN_PSHACK == config->type) && (!config->use_https)) {
-        probeTCPSYNPSHACK_HTTP(target, ttl, config->instance);
+        probeTCP_SYN_PSHACK_HTTP(target, ttl, config->instance);
     } else if ((TR_TCP_SYN_PSHACK == config->type) && (config->use_https)) {
-        probeTCPSYNPSHACK_HTTPS(target, ttl, config->instance);
+        probeTCP_SYN_PSHACK_HTTPS(target, ttl, config->instance);
+    } else if ((TR_TCP_PSHACK == config->type) && (!config->use_https)) {
+        probeTCP_PSHACK_HTTP(target, ttl, config->instance);
+    } else if ((TR_TCP_PSHACK == config->type) && (config->use_https)) {
+        probeTCP_PSHACK_HTTPS(target, ttl, config->instance);
+    } else if ((TR_TCP_PSHACK_X2 == config->type) && (!config->use_https)) {
+        probeTCP_PSHACK_X2_HTTP(target, ttl, config->instance);
+    } else if ((TR_TCP_PSHACK_X2 == config->type) && (config->use_https)) {
+        probeTCP_PSHACK_X2_HTTPS(target, ttl, config->instance);
     } else {
         cerr << "** bad trace type:" << config->type << endl;
         assert(false);
@@ -324,7 +332,7 @@ Traceroute4::probeTCP(struct sockaddr_in *target, int ttl) {
 }
 
 void
-Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
+Traceroute4::probeTCP_SYN_PSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
     std::string domain;
     int domain_index;
     auto it = domain_map.find(target->sin_addr.s_addr);
@@ -393,18 +401,7 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
-        cout << ttl << " t=" << syn_diff << " sport: ";
-        cout << ntohs(tcp_syn->th_sport) << " dport: " << ntohs(tcp_syn->th_dport);
-        cout << " flags:" << tcp_syn->th_flags;
-        cout << " packlen:" << len_syn << endl;
-
-        //Print packet
-        unsigned char *pkt_bytes = (unsigned char *)outip;
-        cout << " Packet bytes: ";
-        for (size_t i = 0; i < packlen; i++) {
-            printf("%02x ", pkt_bytes[i]);
-        }
-        cout << endl;
+        cout << ttl << " t=" << syn_diff << endl;
     }
 
     // PSH+ACK
@@ -436,7 +433,7 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
         probePrint(&target->sin_addr, ttl);
     }
 
-    tcp_pshack->th_seq = htonl(syn_diff + 1); //still do not know about this
+    tcp_pshack->th_seq = htonl(syn_diff + 1);
     tcp_pshack->th_off = 5;
     tcp_pshack->th_win = htons(0xFFFE);
     tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
@@ -461,23 +458,12 @@ Traceroute4::probeTCPSYNPSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
-        cout << ttl << " t=" << syn_diff << " sport: ";
-        cout << ntohs(tcp_pshack->th_sport) << " dport: " << ntohs(tcp_pshack->th_dport);
-        cout << " flags:" << tcp_pshack->th_flags;
-        cout << " packlen:" << len << endl;
-
-        //Print packet
-        unsigned char *pkt_bytes = (unsigned char *)outip;
-        cout << " Packet bytes: ";
-        for (size_t i = 0; i < packlen; i++) {
-            printf("%02x ", pkt_bytes[i]);
-        }
-        cout << endl;
+        cout << ttl << " t=" << syn_diff + 1 << endl;
     }
 }
 
 void
-Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
+Traceroute4::probeTCP_SYN_PSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
     std::string domain;
     int domain_index;
     auto it = domain_map.find(target->sin_addr.s_addr);
@@ -486,14 +472,14 @@ Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_
         domain_index = it->second.second;
     } else {
         domain = "example.com";  // fallback if no domain found
-        domain_index = 2;
+        domain_index = 2; //1 indexing here!
     }
 
     initialize_https_payload(domain.c_str());
 
     // SYN
     unsigned char *ptr_syn = (unsigned char *)outip;
-    struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl << 2));
+    struct tcphdr *tcp_syn = (struct tcphdr *)(ptr_syn + (outip->ip_hl * 4));
 
     packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payloadlen;
     outip->ip_p = IPPROTO_TCP;
@@ -548,13 +534,13 @@ Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
-        cout << ttl << " t=" << syn_diff + 1 << endl;
+        cout << ttl << " t=" << syn_diff << endl;
     }
 
     // PSH+ACK
     unsigned char *ptr = (unsigned char *)outip;
-    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl << 2));
-    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off << 2);
+    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl * 4));
+    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off * 4);
 
     packlen = sizeof(struct ip) + sizeof(struct tcphdr) + tlsPayloadLength;
     outip->ip_p = IPPROTO_TCP;
@@ -578,7 +564,7 @@ Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_
         probePrint(&target->sin_addr, ttl);
     }
 
-    tcp_pshack->th_seq = htonl(syn_diff + 1); //still do not know about this
+    tcp_pshack->th_seq = htonl(syn_diff + 1);
     tcp_pshack->th_off = 5;
     tcp_pshack->th_win = htons(0xFFFE);
     tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
@@ -606,6 +592,355 @@ Traceroute4::probeTCPSYNPSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_
         cout << ttl << " t=" << syn_diff + 1 << endl;
     }
 }
+
+void
+Traceroute4::probeTCP_PSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
+    std::string domain;
+    int domain_index;
+    auto it = domain_map.find(target->sin_addr.s_addr);
+    if (it != domain_map.end()) {
+        domain = it->second.first;
+        domain_index = it->second.second;
+    } else {
+        domain = "example.com";  // fallback if no domain found
+        domain_index = 2; //1 indexing here!
+    }
+
+    // PSH+ACK
+    unsigned char *ptr = (unsigned char *)outip;
+    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl * 4));
+    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off * 4);
+
+    std::string payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
+
+    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payload_str.length();
+    outip->ip_p = IPPROTO_TCP;
+#if defined(_BSD) && !defined(_NEW_FBSD)
+    outip->ip_len = packlen;
+    outip->ip_off = 0; //IP_DF;
+#else
+    outip->ip_len = htons(packlen);
+#endif
+    /* Set HTTP GET request as TCP payload */
+    memcpy(payload, payload_str.c_str(), payload_str.length());
+
+    // /* encode destination IPv4 address as cksum(ipdst) */
+    // uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+
+    const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+	const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+	uint16_t pkt_sport = 0;
+
+	pkt_sport |= (domain_index & 0x1FF) << 7;
+	pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip_dst), 4) >> 9) & 0x7F);
+
+    tcp_pshack->th_sport = htons(pkt_sport);
+    tcp_pshack->th_dport = htons(dstport);
+    /* encode send time into seq no as elapsed milliseconds */
+    uint32_t pshack_diff = elapsed();
+    if (verbosity > HIGH) {
+        cout << ">> TCP probe: ";
+        probePrint(&target->sin_addr, ttl);
+    }
+
+    tcp_pshack->th_seq = htonl(pshack_diff);
+    tcp_pshack->th_off = 5;
+    tcp_pshack->th_win = htons(0xFFFE);
+    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
+
+    /* encode TTL within TCP ack number */
+    set_ack_msb_to_ttl_instance_id(tcp_pshack, uint8_t(ttl), instance_id);
+
+    /* Set TCP flag to be PSH+ACK */
+    tcp_pshack->th_flags = TH_PUSH | TH_ACK;
+
+    /*
+     * explicitly computing cksum probably not required on most machines
+     * these days as offloaded by OS or NIC.  but we'll be safe.
+     */
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+    /*
+     * bsd rawsock requires host ordered len and offset; rewrite here as
+     * chksum must be over htons() versions
+     */
+    u_short len = sizeof(struct tcphdr) + payload_str.length();
+    tcp_pshack->th_sum = p_cksum(outip, (u_short *) tcp_pshack, len);
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << pshack_diff << endl;
+    }
+}
+
+void
+Traceroute4::probeTCP_PSHACK_HTTPS(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
+    std::string domain;
+    int domain_index;
+    auto it = domain_map.find(target->sin_addr.s_addr);
+    if (it != domain_map.end()) {
+        domain = it->second.first;
+        domain_index = it->second.second;
+    } else {
+        domain = "example.com";  // fallback if no domain found
+        domain_index = 2; //1 indexing here!
+    }
+
+    initialize_https_payload(domain.c_str());
+
+    // PSH+ACK
+    unsigned char *ptr = (unsigned char *)outip;
+    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl * 4));
+    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off * 4);
+
+    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + tlsPayloadLength;
+    outip->ip_p = IPPROTO_TCP;
+#if defined(_BSD) && !defined(_NEW_FBSD)
+    outip->ip_len = packlen;
+    outip->ip_off = 0; //IP_DF;
+#else
+    outip->ip_len = htons(packlen);
+#endif
+    /* Set HTTP GET request as TCP payload */
+    memcpy(payload, tlsPayload, tlsPayloadLength);
+
+    /* encode destination IPv4 address as cksum(ipdst) */
+    // uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+
+    const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+	const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+	uint16_t pkt_sport = 0;
+
+	pkt_sport |= (domain_index & 0x1FF) << 7;
+	pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip_dst), 4) >> 9) & 0x7F);
+
+    tcp_pshack->th_sport = htons(pkt_sport);
+    tcp_pshack->th_dport = htons(dstport);
+    /* encode send time into seq no as elapsed milliseconds */
+    uint32_t pshack_diff = elapsed();
+    if (verbosity > HIGH) {
+        cout << ">> TCP probe: ";
+        probePrint(&target->sin_addr, ttl);
+    }
+
+    tcp_pshack->th_seq = htonl(pshack_diff);
+    tcp_pshack->th_off = 5;
+    tcp_pshack->th_win = htons(0xFFFE);
+    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
+
+    /* encode TTL within TCP ack number */
+    set_ack_msb_to_ttl_instance_id(tcp_pshack, uint8_t(ttl), instance_id);
+
+    /* Set TCP flag to be PSH+ACK */
+    tcp_pshack->th_flags = TH_PUSH | TH_ACK;
+
+    /*
+     * explicitly computing cksum probably not required on most machines
+     * these days as offloaded by OS or NIC.  but we'll be safe.
+     */
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+    /*
+     * bsd rawsock requires host ordered len and offset; rewrite here as
+     * chksum must be over htons() versions
+     */
+    u_short len = sizeof(struct tcphdr) + tlsPayloadLength;
+    tcp_pshack->th_sum = p_cksum(outip, (u_short *) tcp_pshack, len);
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << pshack_diff << endl;
+    }
+}
+
+void
+Traceroute4::probeTCP_PSHACK_X2_HTTP(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
+    std::string domain;
+    int domain_index;
+    auto it = domain_map.find(target->sin_addr.s_addr);
+    if (it != domain_map.end()) {
+        domain = it->second.first;
+        domain_index = it->second.second;
+    } else {
+        domain = "example.com";  // fallback if no domain found
+        domain_index = 2; //1 indexing here!
+    }
+
+    // PSH+ACK
+    unsigned char *ptr = (unsigned char *)outip;
+    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl * 4));
+    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off * 4);
+
+    std::string payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
+
+    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + payload_str.length();
+    outip->ip_p = IPPROTO_TCP;
+#if defined(_BSD) && !defined(_NEW_FBSD)
+    outip->ip_len = packlen;
+    outip->ip_off = 0; //IP_DF;
+#else
+    outip->ip_len = htons(packlen);
+#endif
+    /* Set HTTP GET request as TCP payload */
+    memcpy(payload, payload_str.c_str(), payload_str.length());
+
+    // /* encode destination IPv4 address as cksum(ipdst) */
+    // uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+
+    const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+	const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+	uint16_t pkt_sport = 0;
+
+	pkt_sport |= (domain_index & 0x1FF) << 7;
+	pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip_dst), 4) >> 9) & 0x7F);
+
+    tcp_pshack->th_sport = htons(pkt_sport);
+    tcp_pshack->th_dport = htons(dstport);
+    /* encode send time into seq no as elapsed milliseconds */
+    uint32_t pshack_diff = elapsed();
+    if (verbosity > HIGH) {
+        cout << ">> TCP probe: ";
+        probePrint(&target->sin_addr, ttl);
+    }
+
+    tcp_pshack->th_seq = htonl(pshack_diff);
+    tcp_pshack->th_off = 5;
+    tcp_pshack->th_win = htons(0xFFFE);
+    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
+
+    /* encode TTL within TCP ack number */
+    set_ack_msb_to_ttl_instance_id(tcp_pshack, uint8_t(ttl), instance_id);
+
+    /* Set TCP flag to be PSH+ACK */
+    tcp_pshack->th_flags = TH_PUSH | TH_ACK;
+
+    /*
+     * explicitly computing cksum probably not required on most machines
+     * these days as offloaded by OS or NIC.  but we'll be safe.
+     */
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+    /*
+     * bsd rawsock requires host ordered len and offset; rewrite here as
+     * chksum must be over htons() versions
+     */
+    u_short len = sizeof(struct tcphdr) + payload_str.length();
+    tcp_pshack->th_sum = p_cksum(outip, (u_short *) tcp_pshack, len);
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << pshack_diff << endl;
+    }
+
+    // Add 1 to the sequence number of the second packet and recalculate the TCP checksum
+    tcp_pshack->th_seq = htonl(pshack_diff + 1);
+    tcp_pshack->th_sum = 0;
+    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
+
+    // Recalculate IP checksum, just in case
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << pshack_diff + 1 << endl;
+    }
+}
+
+void
+Traceroute4::probeTCP_PSHACK_X2_HTTPS(struct sockaddr_in *target, int ttl, uint8_t instance_id) {
+    std::string domain;
+    int domain_index;
+    auto it = domain_map.find(target->sin_addr.s_addr);
+    if (it != domain_map.end()) {
+        domain = it->second.first;
+        domain_index = it->second.second;
+    } else {
+        domain = "example.com";  // fallback if no domain found
+        domain_index = 2; //1 indexing here!
+    }
+
+    initialize_https_payload(domain.c_str());
+
+    // PSH+ACK
+    unsigned char *ptr = (unsigned char *)outip;
+    struct tcphdr *tcp_pshack = (struct tcphdr *)(ptr + (outip->ip_hl * 4));
+    unsigned char *payload = (unsigned char *)tcp_pshack + (tcp_pshack->th_off * 4);
+
+    packlen = sizeof(struct ip) + sizeof(struct tcphdr) + tlsPayloadLength;
+    outip->ip_p = IPPROTO_TCP;
+#if defined(_BSD) && !defined(_NEW_FBSD)
+    outip->ip_len = packlen;
+    outip->ip_off = 0; //IP_DF;
+#else
+    outip->ip_len = htons(packlen);
+#endif
+    /* Set HTTP GET request as TCP payload */
+    memcpy(payload, tlsPayload, tlsPayloadLength);
+
+    /* encode destination IPv4 address as cksum(ipdst) */
+    // uint16_t dport = in_cksum((unsigned short *)&(outip->ip_dst), 4);
+
+    const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+	const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+	uint16_t pkt_sport = 0;
+
+	pkt_sport |= (domain_index & 0x1FF) << 7;
+	pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip_dst), 4) >> 9) & 0x7F);
+
+    tcp_pshack->th_sport = htons(pkt_sport);
+    tcp_pshack->th_dport = htons(dstport);
+    /* encode send time into seq no as elapsed milliseconds */
+    uint32_t pshack_diff = elapsed();
+    if (verbosity > HIGH) {
+        cout << ">> TCP probe: ";
+        probePrint(&target->sin_addr, ttl);
+    }
+
+    tcp_pshack->th_seq = htonl(pshack_diff);
+    tcp_pshack->th_off = 5;
+    tcp_pshack->th_win = htons(0xFFFE);
+    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
+
+    /* encode TTL within TCP ack number */
+    set_ack_msb_to_ttl_instance_id(tcp_pshack, uint8_t(ttl), instance_id);
+
+    /* Set TCP flag to be PSH+ACK */
+    tcp_pshack->th_flags = TH_PUSH | TH_ACK;
+
+    /*
+     * explicitly computing cksum probably not required on most machines
+     * these days as offloaded by OS or NIC.  but we'll be safe.
+     */
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+    /*
+     * bsd rawsock requires host ordered len and offset; rewrite here as
+     * chksum must be over htons() versions
+     */
+    u_short len = sizeof(struct tcphdr) + tlsPayloadLength;
+    tcp_pshack->th_sum = p_cksum(outip, (u_short *) tcp_pshack, len);
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << pshack_diff << endl;
+    }
+
+    // Add 1 to the sequence number of the second packet and recalculate the TCP checksum
+    tcp_pshack->th_seq = htonl(pshack_diff + 1);
+    tcp_pshack->th_sum = 0;
+    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
+
+    // Recalculate IP checksum, just in case
+    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
+
+    if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
+        cout << __func__ << "(): error: " << strerror(errno) << endl;
+        cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
+        cout << ttl << " t=" << pshack_diff + 1 << endl;
+    }
+}
+
 
 void
 Traceroute4::probeICMP(struct sockaddr_in *target, int ttl) {

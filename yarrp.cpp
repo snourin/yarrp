@@ -134,8 +134,9 @@ loop(YarrpConfig * config, TYPE * iplist, Traceroute * trace,
                 trace->probePrint(&target, ttl);
         }
         stats->count++;
-        //increment counter again because we send two packets for this probe type
-        if (config->type == TR_TCP_SYN_PSHACK) { 
+        //increment counter again because we send two packets for these probe types
+        if ((config->type == TR_TCP_SYN_PSHACK) || (config->type == TR_TCP6_PSHACK) || 
+            (config->type == TR_TCP_PSHACK_X2) || (config->type == TR_TCP6_PSHACK_X2)) { 
             stats->count++;
         }
         /* Progress printer */
