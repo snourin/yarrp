@@ -398,6 +398,9 @@ main(int argc, char **argv) {
 
             if (line == "exit"){
                 debug(LOW, "Got 'exit' off of the named pipe; exiting");
+                if (config.ipv6) {
+                    stop_listener6();
+                }
                 break; // Exit out of this do/while loop
             }
 

@@ -139,6 +139,7 @@ unsigned short compute_data(unsigned short start_cksum, unsigned short target_ck
 void print_binary(const unsigned char *buf, int len, int brk, int tabs);
 void *listener(void *args);
 void *listener6(void *args);
+void stop_listener6();
 uint32_t tsdiff(struct timeval *end, struct timeval *begin);
 uint32_t tsdiffus(struct timeval *end, struct timeval *begin);
 double now(void);

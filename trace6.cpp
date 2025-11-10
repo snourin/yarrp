@@ -224,6 +224,7 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
         ext_hdr_len = 8;
     }
 
+    u_char *data;
     if (config->type != TR_TCP6_SYN_PSHACK) {
         /* Populate a yarrp payload */
         payload->ttl = ttl;
@@ -231,8 +232,9 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
         payload->target = addr;
         uint32_t diff = elapsed();
         payload->diff = diff;
-        u_char *data = (u_char *)(frame + ETH_HDRLEN + sizeof(ip6_hdr) 
+        data = (u_char *)(frame + ETH_HDRLEN + sizeof(ip6_hdr) 
                                 + ext_hdr_len + transport_hdr_len);
+        payload->instance = config->instance;
         memcpy(data, payload, sizeof(struct ypayload));
         packlen = transport_hdr_len + sizeof(struct ypayload);
     }
@@ -267,6 +269,8 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
         pcount++;
     } else {
         make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        /* Copy yarrp payload again, after changing fudge for cksum */
+        memcpy(data, payload, sizeof(struct ypayload));
         outip->ip6_plen = htons(packlen + ext_hdr_len);
         uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
         if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
@@ -294,6 +298,8 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
 
     } else {
         make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        /* Copy yarrp payload again, after changing fudge for cksum */
+        memcpy(data, payload, sizeof(struct ypayload));
         outip->ip6_plen = htons(packlen + ext_hdr_len);
         uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
         write(sndsock, frame, framelen);
@@ -439,17 +445,17 @@ Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool
             packlen = sizeof(struct tcphdr); //change this
             tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
 
-            unsigned char *payload = (unsigned char *)tcp + (tcp->th_off << 2);
+            unsigned char *tcp_payload = (unsigned char *)tcp + (tcp->th_off << 2);
             if (!config->use_https) {
                 /* Set HTTP GET request as TCP payload */
-                std::string payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
-                packlen = sizeof(struct tcphdr) + payload_str.length();
-                memcpy(payload, payload_str.c_str(), payload_str.length());
+                std::string tcp_payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
+                packlen = sizeof(struct tcphdr) + tcp_payload_str.length();
+                memcpy(tcp_payload, tcp_payload_str.c_str(), tcp_payload_str.length());
             } else {
                 /* Set HTTPS TLS Client Hello request as TCP payload */
                 initialize_https_payload(domain.c_str());
                 packlen = sizeof(struct tcphdr) + tlsPayloadLength;
-                memcpy(payload, tlsPayload, tlsPayloadLength);
+                memcpy(tcp_payload, tlsPayload, tlsPayloadLength);
             }
         }
 

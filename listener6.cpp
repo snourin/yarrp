@@ -39,6 +39,10 @@ int bpfinit(char *dev, size_t *bpflen) {
 }
 #endif
 
+void stop_listener6() {
+    run = false;
+}
+
 void *listener6(void *args) {
     fd_set rfds;
     Traceroute6 *trace = reinterpret_cast < Traceroute6 * >(args);
@@ -66,7 +70,12 @@ void *listener6(void *args) {
 
     /* bind PF_PACKET to single interface */
     struct ifreq ifr;
-    strncpy(ifr.ifr_name, trace->config->int_name, IFNAMSIZ);
+    if (trace->config->int_name_listener) {
+        strncpy(ifr.ifr_name, trace->config->int_name_listener, IFNAMSIZ);
+    }
+    else{
+        strncpy(ifr.ifr_name, trace->config->int_name, IFNAMSIZ);
+    }
     if (ioctl(rcvsock, SIOCGIFINDEX, &ifr) < 0) fatal ("ioctl err");;
     struct sockaddr_ll sll;
     memset(&sll, 0, sizeof(sll));
@@ -83,15 +92,19 @@ void *listener6(void *args) {
 #else
     /* Init BPF */
     size_t blen = 0;
-    rcvsock = bpfinit(trace->config->int_name, &blen);
+    if (trace->config->int_name_listener) {
+        rcvsock = bpfinit(trace->config->int_name_listener, &blen);
+    } else {
+        rcvsock = bpfinit(trace->config->int_name, &blen);
+    }
     unsigned char *bpfbuf = (unsigned char *) calloc(1,blen);
     struct bpf_hdr *bh = NULL;
 #endif
 
     signal(SIGINT, intHandler);
-    while (true and run) {
-        if (nullreads >= MAXNULLREADS)
-            break;
+    while (run) {
+        // if (nullreads >= MAXNULLREADS)
+        //     break;
 #ifdef _LINUX
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
@@ -114,7 +127,7 @@ void *listener6(void *args) {
 
         if (FD_ISSET(rcvsock, &rfds)) {
             len = recv(rcvsock, buf, PKTSIZE, 0); 
-        } else if (tcpsock, &rfds) {
+        } else if (FD_ISSET(tcpsock, &rfds)) {
             len = recv(tcpsock, buf, PKTSIZE, 0);
         }
 #else
@@ -128,9 +141,15 @@ reloop:
         if (len == -1) {
             fatal("%s %s", __func__, strerror(errno));
         }
-        ip = (struct ip6_hdr *)(buf + ETH_HDRLEN);
+
+        unsigned char *bufptr = buf; 
+        // Check if there is an Ethernet header
+        if ((bufptr[0] & 0xF0) != 0x60) {
+            bufptr += ETH_HDRLEN ;
+        }
+        ip = (struct ip6_hdr *)(bufptr);
         if (ip->ip6_nxt == IPPROTO_ICMPV6) {
-            ippayload = (struct icmp6_hdr *)&buf[ETH_HDRLEN + sizeof(struct ip6_hdr)];
+            ippayload = (struct icmp6_hdr *)&bufptr[sizeof(struct ip6_hdr)];
             elapsed = trace->elapsed();
             if ( (ippayload->icmp6_type == ICMP6_TIME_EXCEEDED) or
                  (ippayload->icmp6_type == ICMP6_DST_UNREACH) or
@@ -139,12 +158,13 @@ reloop:
                 if (icmp->is_yarrp) {
                     if (verbosity > LOW)
                         icmp->print();
-                    if (icmp->getInstance() != trace->config->instance) {
-                        if (verbosity > HIGH)
-                            cerr << ">> Listener: packet instance mismatch." << endl;
-                        delete icmp;
-                        continue;
-                    }
+                    // if (icmp->getInstance() != trace->config->instance) {
+                    //     if (verbosity > HIGH) {
+                    //         cerr << ">> Listener: packet instance mismatch." << endl;
+                    //     }
+                    //     delete icmp;
+                    //     continue;
+                    // }
                     /* Fill mode logic. */
                     if (trace->config->fillmode) {
                         if ( (icmp->getTTL() >= trace->config->maxttl) and
@@ -165,7 +185,7 @@ reloop:
                 delete icmp;
             }
         } else if (ip->ip6_nxt == IPPROTO_TCP) {
-            struct tcphdr *tcp_hdr = (struct tcphdr *) (buf + ETH_HDRLEN + sizeof(struct ip6_hdr)); 
+            struct tcphdr *tcp_hdr = (struct tcphdr *) (bufptr + sizeof(struct ip6_hdr)); 
             TCP6 *tcp = new TCP6(ip, tcp_hdr, trace->config->instance);
             TCP6 *tcp6 = static_cast<TCP6 *>(tcp);
             Traceroute6 *trace6 = static_cast<Traceroute6 *>(trace);

@@ -217,7 +217,6 @@ ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool 
                 ext_hdr_len = 8;
                 quote_p = eh->ip6e_nxt;
             }
-
             // continue processing
             offset = sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr) + ext_hdr_len;
             if (quote_p == IPPROTO_TCP) {
@@ -260,17 +259,15 @@ ICMP6::ICMP6(struct ip6_hdr *ip, struct icmp6_hdr *icmp, uint32_t elapsed, bool 
         low_bits = be64toh(low_bits);
         uint32_t id = uint32_t(low_bits >> 32);
 
-        cout << id << endl;
-        cout << ntohl(id) << endl;
-
         if (id == 0x79727036)
             is_yarrp = true;
 
         /* Extract the instance id from the next 8 bits of the last 64 bits of the dst IPv6 address*/
-        instance = uint8_t((low_bits >> 24) & 0xFF);
+        uint32_t lower_bits_no_id = uint32_t(low_bits & 0xFFFFFFFF);
+        instance = uint8_t((lower_bits_no_id >> 24) & 0xFF);
 
         /* Extract the ttl from the next 8 bits of the last 64 bits of the dst IPv6 address*/
-        ttl = uint8_t((low_bits >> 16) & 0xFF);
+        ttl = uint8_t((lower_bits_no_id >> 16) & 0xFF);
 
         /* Extract the elapsed time from the quoted TCP sequence number */
         struct tcphdr *tcp = (struct tcphdr*) ((uint8_t *)ip + sizeof(struct ip6_hdr));
@@ -418,7 +415,7 @@ ICMP6::print() {
     }
 }
 
-/* trgt, sec, usec, type, code, ttl, hop, rtt, ipid, psize, rsize, rttl, rtos */
+/* trgt, sec, usec, type, code, ttl, hop, rtt, ipid, psize, rsize, rttl, rtos, mpls, instance_id, count*/
 void ICMP::write(FILE ** out, uint32_t count, char *src, char *target) {
     if (*out == NULL)
         return;
@@ -429,6 +426,7 @@ void ICMP::write(FILE ** out, uint32_t count, char *src, char *target) {
     fprintf(*out, "%d %d %d %d ",
         probesize, replysize, replyttl, replytos);
     fprintf(*out, "%s ", getMPLS());
+    fprintf(*out, "%d ", instance);
     fprintf(*out, "%d\n", count);
 }
 
