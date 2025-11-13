@@ -22,6 +22,7 @@ static struct option long_options[] = {
     {"help", no_argument, NULL, 'h'},
     {"input", required_argument, NULL, 'i'},
     {"interface", required_argument, NULL, 'I'},
+    {"lst_interface", no_argument, NULL, 'L'},
     {"minttl", required_argument, NULL, 'l'},
     {"maxttl", required_argument, NULL, 'm'},
     {"dstmac", required_argument, NULL, 'G'},
@@ -70,7 +71,7 @@ YarrpConfig::parse_opts(int argc, char **argv) {
 #endif
     params["RTT_Granularity"] = val_t("us", true);
     params["Targets"] = val_t("entire", true);
-    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CE:f:F:G:g:hi:I:l:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
+    while (-1 != (c = getopt_long(argc, argv, "a:b:B:c:CE:f:F:G:g:hi:I:l:L:m:M:n:o:p:PQr:RsS:t:vVTX:Z:", long_options, &opt_index))) {
         switch (c) {
         case 'b':
             bgpfile = optarg;
@@ -142,6 +143,9 @@ YarrpConfig::parse_opts(int argc, char **argv) {
             break;
         case 'l':
             minttl = strtol(optarg, &endptr, 10);
+            break;
+        case 'L':
+            int_name_listener = optarg;
             break;
         case 'm':
             maxttl = strtol(optarg, &endptr, 10);
@@ -418,6 +422,7 @@ YarrpConfig::usage(char *prog) {
 
     << "IPv6 options:" << endl
     << "  -I, --interface         Network interface (required for IPv6)" << endl
+    << "  -L, --lst_interface     Network interface for listener, if different from sending interface " << endl
     << "  -G, --dstmac            MAC of gateway router (default: auto)" << endl
     << "  -M, --srcmac            MAC of probing host (default: auto)" << endl
     << "  -g, --granularity       Granularity to probe input subnets (default: 50)" << endl

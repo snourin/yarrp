@@ -8,7 +8,7 @@ class YarrpConfig {
     bgpfile(NULL), inlist(NULL), inlist_storage(""), blocklist(NULL),
     count(0), minttl(1), maxttl(16), seed(0),
     dstport(80), named_pipe(NULL),
-    ipv6(false), int_name(NULL), dstmac(NULL), srcmac(NULL), 
+    ipv6(false), int_name(NULL), int_name_listener(NULL), dstmac(NULL), srcmac(NULL), 
     coarse(false), fillmode(32), poisson(0), use_https(false),
     probesrc(NULL), probe(true), receive(true), instance(0), v6_eh(255), out(NULL), tcp_out(NULL){};
 
@@ -39,6 +39,7 @@ class YarrpConfig {
   uint16_t dstport;
   bool ipv6;
   char *int_name;
+  char *int_name_listener;
   uint8_t *dstmac;
   uint8_t *srcmac;
   int type;
