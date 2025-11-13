@@ -442,7 +442,7 @@ Traceroute4::probeTCP_SYN_PSHACK_HTTP(struct sockaddr_in *target, int ttl, uint8
     set_ack_msb_to_ttl_instance_id(tcp_pshack, uint8_t(ttl), instance_id);
 
     /* Set TCP flag to be PSH+ACK */
-    tcp_pshack->th_flags = TH_PUSH | TH_ACK;
+    tcp_pshack->th_flags = TH_PUSH;
 
     /*
      * explicitly computing cksum probably not required on most machines
@@ -832,14 +832,6 @@ Traceroute4::probeTCP_PSHACK_X2_HTTP(struct sockaddr_in *target, int ttl, uint8_
         cout << ttl << " t=" << pshack_diff << endl;
     }
 
-    // Add 1 to the sequence number of the second packet and recalculate the TCP checksum
-    tcp_pshack->th_seq = htonl(pshack_diff + 1);
-    tcp_pshack->th_sum = 0;
-    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
-
-    // Recalculate IP checksum, just in case
-    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
-
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
@@ -925,14 +917,6 @@ Traceroute4::probeTCP_PSHACK_X2_HTTPS(struct sockaddr_in *target, int ttl, uint8
         cout << ">> TCP probe: " << inet_ntoa(target->sin_addr) << " ttl: ";
         cout << ttl << " t=" << pshack_diff << endl;
     }
-
-    // Add 1 to the sequence number of the second packet and recalculate the TCP checksum
-    tcp_pshack->th_seq = htonl(pshack_diff + 1);
-    tcp_pshack->th_sum = 0;
-    tcp_pshack->th_sum = tcp_checksum(sizeof(struct tcphdr), outip->ip_src.s_addr, outip->ip_dst.s_addr, tcp_pshack);
-
-    // Recalculate IP checksum, just in case
-    outip->ip_sum = htons(in_cksum((unsigned short *)outip, 20));
 
     if (sendto(sndsock, (char *)outip, packlen, 0, (struct sockaddr *)target, sizeof(*target)) < 0) {
         cout << __func__ << "(): error: " << strerror(errno) << endl;
