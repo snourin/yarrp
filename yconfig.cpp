@@ -280,7 +280,7 @@ YarrpConfig::parse_opts(int argc, char **argv) {
     params["Max_TTL"] = val_t(to_string(maxttl), true);
     params["TTL_Nbrhd"] = val_t(to_string(ttl_neighborhood), true);
     params["Dst_Port"] = val_t(to_string(dstport), true);
-    params["Output_Fields_ICMP"] = val_t("target sec usec type code ttl hop rtt ipid psize rsize rttl rtos mpls count", true);
+    params["Output_Fields_ICMP"] = val_t("target sec usec type code ttl hop rtt ipid psize rsize rttl rtos mpls instance_id count", true);
     params["Output_Fields_TCP"] = val_t("target sec usec sport dport ttl ipid src seq ack flags payload_len total_len ttl_triggered window checksum urg_ptr instance", true);
 }
 
