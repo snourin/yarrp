@@ -205,6 +205,8 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
       case TR_TCP6_SYN:
       case TR_TCP6_ACK:
       case TR_TCP6_SYN_PSHACK:
+      case TR_TCP6_PSHACK:
+      case TR_TCP6_PSHACK_X2:
         outip->ip6_nxt = IPPROTO_TCP;
         transport_hdr_len = sizeof(struct tcphdr);
         break;
@@ -225,7 +227,7 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
     }
 
     u_char *data;
-    if (config->type != TR_TCP6_SYN_PSHACK) {
+    if ((config->type != TR_TCP6_SYN_PSHACK) && (config->type != TR_TCP6_PSHACK_X2) && (config->type != TR_TCP6_PSHACK)) {
         /* Populate a yarrp payload */
         payload->ttl = ttl;
         payload->fudge = 0;
@@ -246,7 +248,7 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
     }
 #ifdef _LINUX
     if (config->type == TR_TCP6_SYN_PSHACK) {
-        //packlen will be set in the make_transport() function
+        // is packlen getting set properly???
 
         // send SYN
         make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
@@ -262,6 +264,39 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
         make_transport(ext_hdr_len, ttl, addr, true); /* Populate transport header */
         outip->ip6_plen = htons(packlen + ext_hdr_len);
         framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
+        {
+            fatal("%s: error: %s", __func__, strerror(errno));
+        }
+        pcount++;
+    } else if (config->type == TR_TCP6_PSHACK_X2) {
+        // send first PSH+ACK
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
+        {
+            fatal("%s: error: %s", __func__, strerror(errno));
+        }
+        pcount++;
+
+        // send second PSH+ACK
+        make_transport(ext_hdr_len, ttl, addr, true); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
+        {
+            fatal("%s: error: %s", __func__, strerror(errno));
+        }
+        pcount++;
+        
+    } else if (config->type == TR_TCP6_PSHACK) {
+        //packlen will be set in the make_transport() function
+
+        // send PSH+ACK
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
         if (sendto(sndsock, frame, framelen, 0, (struct sockaddr *)target, sizeof(struct sockaddr_ll)) < 0)
         {
             fatal("%s: error: %s", __func__, strerror(errno));
@@ -296,6 +331,26 @@ Traceroute6::probe(void *target, struct in6_addr addr, int ttl) {
         write(sndsock, frame, framelen);
         pcount++;
 
+    } else if (config->type == TR_TCP6_PSHACK_X2) {
+        // send first PSH+ACK
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        write(sndsock, frame, framelen);
+        pcount++;
+
+        // send second PSH+ACK
+        make_transport(ext_hdr_len, ttl, addr, true); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        write(sndsock, frame, framelen);
+        pcount++;
+    } else if (config->type == TR_TCP6_PSHACK) {
+        make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
+        outip->ip6_plen = htons(packlen + ext_hdr_len);
+        uint16_t framelen = ETH_HDRLEN + sizeof(ip6_hdr) + ext_hdr_len + packlen;
+        write(sndsock, frame, framelen);
+        pcount++;
     } else {
         make_transport(ext_hdr_len, ttl, addr); /* Populate transport header */
         /* Copy yarrp payload again, after changing fudge for cksum */
@@ -442,8 +497,6 @@ Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool
         } else {
             tcp->th_seq = htonl(censored_syn_seq_num + 1);
             tcp->th_flags = TH_PUSH | TH_ACK;
-            packlen = sizeof(struct tcphdr); //change this
-            tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
 
             unsigned char *tcp_payload = (unsigned char *)tcp + (tcp->th_off << 2);
             if (!config->use_https) {
@@ -457,7 +510,135 @@ Traceroute6::make_transport(int ext_hdr_len, int ttl, struct in6_addr addr, bool
                 packlen = sizeof(struct tcphdr) + tlsPayloadLength;
                 memcpy(tcp_payload, tlsPayload, tlsPayloadLength);
             }
+
+            tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
         }
+
+        /* set checksum for paris goodness */
+        uint16_t crafted_cksum = htons(0xbeef);
+        uint16_t fudge;
+        if (!censorship_second_pkt) {
+            fudge = compute_data(tcp->th_sum, crafted_cksum);
+            censored_fudge = fudge;
+        } else {
+            fudge = censored_fudge;
+        }
+        //uint16_t fudge = compute_data(tcp->th_sum, crafted_cksum);
+        tcp->th_sum = crafted_cksum;
+
+        /* encode first 8 bytes of yarrp payload into lower 64 bits of the source IPv6 address */
+        uint64_t high_bits = *(uint64_t*)&outip->ip6_src.s6_addr[0];
+        uint32_t id = 0x79727036;
+        uint64_t low_bits = set_low_bits(id, config->instance, uint8_t(ttl), fudge);
+        low_bits = htobe64(low_bits);
+        memcpy(outip->ip6_src.s6_addr, &high_bits, 8);
+        memcpy(outip->ip6_src.s6_addr + 8, &low_bits, 8);
+    } else if (config->type == TR_TCP6_PSHACK_X2) {
+        struct tcphdr *tcp = (struct tcphdr *)transport; 
+
+        const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+        const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+        uint16_t pkt_sport = 0;
+
+        pkt_sport |= (domain_index & 0x1FF) << 7;
+        pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip6_dst), 16) >> 9) & 0x7F);
+
+        tcp->th_sport = htons(pkt_sport);
+        tcp->th_dport = htons(dstport);
+        tcp->th_off = 5;
+        tcp->th_win = htons(65535);
+        tcp->th_sum = 0;
+        tcp->th_x2 = 0;
+        tcp->th_urp = htons(0);
+
+        /* encode TTL within TCP ack number */
+        set_ack_msb_to_ttl_instance_id(tcp, uint8_t(ttl), config->instance);
+
+        if (!censorship_second_pkt) {
+            uint32_t diff = elapsed();
+            tcp->th_seq = htonl(diff);
+            censored_syn_seq_num = diff;
+        } else {
+            tcp->th_seq = htonl(censored_syn_seq_num);
+        }
+
+        tcp->th_flags = TH_PUSH | TH_ACK;
+
+        unsigned char *tcp_payload = (unsigned char *)tcp + (tcp->th_off << 2);
+        if (!config->use_https) {
+            /* Set HTTP GET request as TCP payload */
+            std::string tcp_payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
+            packlen = sizeof(struct tcphdr) + tcp_payload_str.length();
+            memcpy(tcp_payload, tcp_payload_str.c_str(), tcp_payload_str.length());
+        } else {
+            /* Set HTTPS TLS Client Hello request as TCP payload */
+            initialize_https_payload(domain.c_str());
+            packlen = sizeof(struct tcphdr) + tlsPayloadLength;
+            memcpy(tcp_payload, tlsPayload, tlsPayloadLength);
+        }
+
+        tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
+
+        /* set checksum for paris goodness */
+        uint16_t crafted_cksum = htons(0xbeef);
+        uint16_t fudge;
+        if (!censorship_second_pkt) {
+            fudge = compute_data(tcp->th_sum, crafted_cksum);
+            censored_fudge = fudge;
+        } else {
+            fudge = censored_fudge;
+        }
+        //uint16_t fudge = compute_data(tcp->th_sum, crafted_cksum);
+        tcp->th_sum = crafted_cksum;
+
+        /* encode first 8 bytes of yarrp payload into lower 64 bits of the source IPv6 address */
+        uint64_t high_bits = *(uint64_t*)&outip->ip6_src.s6_addr[0];
+        uint32_t id = 0x79727036;
+        uint64_t low_bits = set_low_bits(id, config->instance, uint8_t(ttl), fudge);
+        low_bits = htobe64(low_bits);
+        memcpy(outip->ip6_src.s6_addr, &high_bits, 8);
+        memcpy(outip->ip6_src.s6_addr + 8, &low_bits, 8);
+    } else if (config->type == TR_TCP6_PSHACK) {
+        struct tcphdr *tcp = (struct tcphdr *)transport; 
+
+        const uint32_t DOMAIN_INDEX_MASK = 0x1FF << 7;
+        const uint32_t DST_IP_CHKSM_MASK = 0x7F;
+
+        uint16_t pkt_sport = 0;
+
+        pkt_sport |= (domain_index & 0x1FF) << 7;
+        pkt_sport |= ((in_cksum((unsigned short *)&(outip->ip6_dst), 16) >> 9) & 0x7F);
+
+        tcp->th_sport = htons(pkt_sport);
+        tcp->th_dport = htons(dstport);
+        tcp->th_off = 5;
+        tcp->th_win = htons(65535);
+        tcp->th_sum = 0;
+        tcp->th_x2 = 0;
+        tcp->th_urp = htons(0);
+
+        /* encode TTL within TCP ack number */
+        set_ack_msb_to_ttl_instance_id(tcp, uint8_t(ttl), config->instance);
+
+        uint32_t diff = elapsed();
+        tcp->th_seq = htonl(diff);
+        tcp->th_flags = TH_PUSH | TH_ACK;
+
+        unsigned char *tcp_payload = (unsigned char *)tcp + (tcp->th_off << 2);
+        if (!config->use_https) {
+            /* Set HTTP GET request as TCP payload */
+            std::string tcp_payload_str = "GET / HTTP/1.1\r\nHost: " + domain + "\r\n\r\n";
+            packlen = sizeof(struct tcphdr) + tcp_payload_str.length();
+            memcpy(tcp_payload, tcp_payload_str.c_str(), tcp_payload_str.length());
+        } else {
+            /* Set HTTPS TLS Client Hello request as TCP payload */
+            initialize_https_payload(domain.c_str());
+            packlen = sizeof(struct tcphdr) + tlsPayloadLength;
+            memcpy(tcp_payload, tlsPayload, tlsPayloadLength);
+        }
+
+        tcp->th_sum = p_cksum(outip, (u_short *) tcp, packlen);
 
         /* set checksum for paris goodness */
         uint16_t crafted_cksum = htons(0xbeef);

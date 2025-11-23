@@ -352,6 +352,7 @@ main(int argc, char **argv) {
                     }
 
                 } else if (pid > 0) { // Parent process
+                    sleep(5); // let tcpdump start
                     loop(&config, iplist, trace, tree, stats);
                     debug(LOW, "Probing loop complete. Napping before terminating tcpdump");
                     sleep(5);

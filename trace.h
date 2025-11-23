@@ -106,6 +106,7 @@ class Traceroute6 : public Traceroute {
     char addrstr[INET6_ADDRSTRLEN];
     IPList *iplist;
     uint32_t censored_syn_seq_num;
+    uint16_t censored_fudge;
 };
 
 /* For calculating TCP checksum, taken from Zmap */
